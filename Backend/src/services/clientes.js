@@ -13,7 +13,7 @@ async function postCliente(dados) {
 
     try {
 
-        // Regex validações - nome, email, telefone e senha
+        // Regex validações
         const regexNome = /^[A-Za-zÀ-ÿ\s]{3,}$/;
         const regexEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
         const regexTelefone = /^\(?\d{2}\)?\s?\d{4,5}-?\d{4}$/;
@@ -59,17 +59,38 @@ async function postCliente(dados) {
             };
         }
 
-        // Verifica se email já existe
-        const emailCheck = await db.query(
-            'SELECT id FROM clientes WHERE email = $1',
-            [email]
+        // Verifica duplicidade
+        const check = await db.query(
+            `SELECT email, cpf, telefone
+             FROM clientes
+             WHERE email = $1 OR cpf = $2 OR telefone = $3`,
+            [email, cpf, telefone]
         );
 
-        if (emailCheck.rows.length > 0) {
-            return {
-                success: false,
-                message: 'Email já está em uso.'
-            };
+        if (check.rows.length > 0) {
+
+            const cliente = check.rows[0];
+
+            if (cliente.email === email) {
+                return {
+                    success: false,
+                    message: 'Email já está em uso.'
+                };
+            }
+
+            if (cliente.cpf === cpf) {
+                return {
+                    success: false,
+                    message: 'CPF já está cadastrado.'
+                };
+            }
+
+            if (cliente.telefone === telefone) {
+                return {
+                    success: false,
+                    message: 'Telefone já está cadastrado.'
+                };
+            }
         }
 
         // Hash da senha
@@ -138,6 +159,172 @@ async function getClientes() {
     }
 }
 
+async function putCliente(id, dados) {
+
+    let {
+        nome,
+        email,
+        telefone,
+        cpf
+    } = dados;
+
+    try {
+
+        const regexNome = /^[A-Za-zÀ-ÿ\s]{3,}$/;
+        const regexEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        const regexTelefone = /^\(?\d{2}\)?\s?\d{4,5}-?\d{4}$/;
+
+        // valida nome
+        if (!nome || !regexNome.test(nome)) {
+            return {
+                success: false,
+                message: 'Nome inválido.'
+            };
+        }
+
+        // valida email
+        if (!email || !regexEmail.test(email)) {
+            return {
+                success: false,
+                message: 'Email inválido.'
+            };
+        }
+
+        // valida telefone
+        if (!telefone || !regexTelefone.test(telefone)) {
+            return {
+                success: false,
+                message: 'Telefone inválido.'
+            };
+        }
+
+        // valida CPF
+        if (!cpf || !validarCPF(cpf)) {
+            return {
+                success: false,
+                message: 'CPF inválido.'
+            };
+        }
+
+        // verifica se cliente existe
+        const clienteCheck = await db.query(
+            'SELECT id FROM clientes WHERE id = $1',
+            [id]
+        );
+
+        if (clienteCheck.rows.length === 0) {
+            return {
+                success: false,
+                message: 'Cliente não encontrado.'
+            };
+        }
+
+        // 🔎 verifica duplicidade de email, cpf ou telefone
+        const duplicadoCheck = await db.query(
+            `SELECT id, email, cpf, telefone
+             FROM clientes
+             WHERE (email = $1 OR cpf = $2 OR telefone = $3)
+             AND id != $4`,
+            [email, cpf, telefone, id]
+        );
+
+        if (duplicadoCheck.rows.length > 0) {
+
+            const cliente = duplicadoCheck.rows[0];
+
+            if (cliente.email === email) {
+                return {
+                    success: false,
+                    message: "Email já está em uso."
+                };
+            }
+
+            if (cliente.cpf === cpf) {
+                return {
+                    success: false,
+                    message: "CPF já está cadastrado."
+                };
+            }
+
+            if (cliente.telefone === telefone) {
+                return {
+                    success: false,
+                    message: "Telefone já está cadastrado."
+                };
+            }
+        }
+
+        const result = await db.query(
+            `UPDATE clientes
+             SET nome = $1,
+                 email = $2,
+                 telefone = $3,
+                 cpf = $4
+             WHERE id = $5
+             RETURNING id, nome, email, telefone, cpf`,
+            [
+                nome,
+                email.toLowerCase(),
+                telefone,
+                cpf,
+                id
+            ]
+        );
+
+        return {
+            success: true,
+            message: 'Cliente atualizado com sucesso.',
+            cliente: result.rows[0]
+        };
+
+    } catch (error) {
+
+        console.error(error);
+
+        return {
+            success: false,
+            message: 'Erro ao atualizar cliente.',
+            error: error.message
+        };
+    }
+}
+
+
+async function deleteCliente(id) {
+
+    try {
+
+        const result = await db.query(
+            `DELETE FROM clientes
+            WHERE id = $1
+            RETURNING id`,
+            [id]
+        );
+
+        if (result.rows.length === 0) {
+            return {
+                success: false,
+                message: "Cliente não encontrado."
+            };
+        }
+
+        return {
+            success: true,
+            message: "Cliente deletado com sucesso."
+        };
+
+    } catch (error) {
+
+        console.error(error);
+
+        return {
+            success: false,
+            message: "Erro ao deletar cliente.",
+            error: error.message
+        };
+    }
+}
+
 // Função para validar CPF usada na função postCliente
 function validarCPF(cpf) {
     cpf = cpf.replace(/\D/g, '');
@@ -177,5 +364,7 @@ function validarCPF(cpf) {
 
 module.exports = {
     postCliente,
-    getClientes
+    getClientes,
+    putCliente,
+    deleteCliente
 };
