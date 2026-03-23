@@ -62,9 +62,28 @@ async function deleteVeiculo(req, res) {
     res.json(result);
 }
 
+async function getVeiculoById(req, res) {
+
+    const { id } = req.params;
+
+    const resultado = await veiculoService.getVeiculoById(id);
+
+    if (resultado.success) {
+        res.status(200).json(resultado.veiculo);
+    } else {
+
+        if (resultado.message === "Veículo não encontrado") {
+            res.status(404).json(resultado);
+        } else {
+            res.status(400).json(resultado);
+        }
+    }
+}
+
 module.exports = {
     postVeiculo,
     getVeiculos,
     putVeiculo,
-    deleteVeiculo
+    deleteVeiculo,
+    getVeiculoById
 };

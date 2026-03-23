@@ -159,6 +159,44 @@ async function getClientes() {
     }
 }
 
+async function getClienteById(id) {
+    try {
+
+        const result = await db.query(`
+            SELECT 
+                id,
+                nome,
+                cpf,
+                email,
+                telefone
+            FROM clientes
+            WHERE id = $1
+        `, [id]);
+
+        if (result.rows.length === 0) {
+            return {
+                success: false,
+                message: 'Cliente não encontrado.'
+            };
+        }
+
+        return {
+            success: true,
+            cliente: result.rows[0]
+        };
+
+    } catch (error) {
+
+        console.error('Erro ao buscar cliente por ID:', error);
+
+        return {
+            success: false,
+            message: 'Erro ao buscar cliente.',
+            error: error.message
+        };
+    }
+}
+
 async function putCliente(id, dados) {
 
     let {
@@ -366,5 +404,6 @@ module.exports = {
     postCliente,
     getClientes,
     putCliente,
-    deleteCliente
+    deleteCliente,
+    getClienteById
 };

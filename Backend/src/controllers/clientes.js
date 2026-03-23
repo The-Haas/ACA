@@ -21,6 +21,25 @@ async function getClientes(req, res) {
     }
 }
 
+async function getClienteById(req, res) {
+
+    const { id } = req.params;
+
+    const resultado = await clienteService.getClienteById(id);
+
+    if (resultado.success) {
+        res.status(200).json(resultado.cliente);
+    } else {
+
+        // diferencia erro de não encontrado
+        if (resultado.message === 'Cliente não encontrado.') {
+            res.status(404).json(resultado);
+        } else {
+            res.status(400).json(resultado);
+        }
+    }
+}
+
 async function putCliente(req, res) {
 
     const { id } = req.params;
@@ -52,5 +71,6 @@ module.exports = {
     postCliente,
     getClientes,
     putCliente,
-    deleteCliente
+    deleteCliente,
+    getClienteById
 };

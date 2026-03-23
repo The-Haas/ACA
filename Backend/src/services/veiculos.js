@@ -143,6 +143,61 @@ async function getVeiculos() {
     }
 }
 
+async function getVeiculoById(id_veiculo) {
+
+    try {
+
+        const result = await db.query(`
+        SELECT 
+            v.id_veiculo,
+            v.renavam,
+            v.placa,
+            v.descricao,
+            v.cor,
+            v.id_categoria,
+            cat.nome AS categoria,
+
+            c.id AS id_cliente,
+            c.nome,
+            c.email,
+            c.telefone
+
+        FROM veiculos v
+
+        JOIN cliente_veiculo cv 
+            ON cv.id_veiculo = v.id_veiculo
+
+        JOIN clientes c 
+            ON c.id = cv.id_cliente
+
+        JOIN categoria_veiculo cat
+            ON cat.id = v.id_categoria
+
+        WHERE v.id_veiculo = $1
+        `, [id_veiculo]);
+
+        if (result.rows.length === 0) {
+            return {
+                success: false,
+                message: "Veículo não encontrado"
+            };
+        }
+
+        return {
+            success: true,
+            veiculo: result.rows[0]
+        };
+
+    } catch (error) {
+
+        return {
+            success: false,
+            message: "Erro ao buscar veículo",
+            error: error.message
+        };
+    }
+}
+
 async function putVeiculo(id_veiculo, dados) {
 
     const {
@@ -333,6 +388,7 @@ module.exports = {
     postVeiculo,
     getVeiculos,
     putVeiculo,
-    deleteVeiculo
+    deleteVeiculo,
+    getVeiculoById
 
 };

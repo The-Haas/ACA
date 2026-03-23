@@ -6,5 +6,6 @@ module.exports = (app) => {
     app.get('/veiculos', veiculoController.getVeiculos);
     app.put('/veiculos/:id', veiculoController.putVeiculo);
     app.delete('/veiculos/:id', veiculoController.deleteVeiculo);
+    app.get('/veiculos/:id', veiculoController.getVeiculoById);
 
 };
