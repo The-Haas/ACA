@@ -58,10 +58,26 @@ async function deletePrestador(req, res) {
     }
 }
 
+async function patchPrestador(req, res) {
+
+    const resultado = await prestadorService.patchPrestador(
+        req.params.id,
+        req.body
+    );
+
+    if (resultado.success) {
+        res.status(200).json(resultado);
+    } else {
+        res.status(400).json(resultado);
+    }
+}
+
+
 module.exports = {
     postPrestador,
     getPrestador,
     getPrestadorById,
     putPrestador,
-    deletePrestador
+    deletePrestador,
+    patchPrestador
 };

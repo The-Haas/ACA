@@ -80,10 +80,25 @@ async function getVeiculoById(req, res) {
     }
 }
 
+async function patchVeiculo(req, res) {
+
+    const resultado = await veiculoService.patchVeiculo(
+        req.params.id,
+        req.body
+    );
+
+    if (resultado.success) {
+        res.status(200).json(resultado);
+    } else {
+        res.status(400).json(resultado);
+    }
+}
+
 module.exports = {
     postVeiculo,
     getVeiculos,
     putVeiculo,
     deleteVeiculo,
-    getVeiculoById
+    getVeiculoById,
+    patchVeiculo
 };

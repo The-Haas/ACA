@@ -6,4 +6,5 @@ module.exports = (app) => {
     app.put('/clientes/:id', clienteController.putCliente);
     app.delete('/clientes/:id', clienteController.deleteCliente);
     app.get('/clientes/:id', clienteController.getClienteById);
+    app.patch('/clientes/:id', clienteController.patchCliente);
 };

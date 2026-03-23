@@ -384,11 +384,154 @@ async function deleteVeiculo(id_veiculo) {
     }
 }
 
+async function patchVeiculo(id_veiculo, dados) {
+
+    const client = await db.pool.connect();
+
+    try {
+
+        await client.query('BEGIN');
+
+        const atual = await client.query(
+            `SELECT * FROM veiculos WHERE id_veiculo = $1`,
+            [id_veiculo]
+        );
+
+        if (!atual.rows || atual.rows.length === 0) {
+            await client.query('ROLLBACK');
+            return {
+                success: false,
+                message: "Veículo não encontrado"
+            };
+        }
+
+        const veiculoAtual = atual.rows[0];
+
+        const renavam = dados.renavam ?? veiculoAtual.renavam;
+        const placa = dados.placa ?? veiculoAtual.placa;
+        const id_categoria = dados.id_categoria ?? veiculoAtual.id_categoria;
+        const descricao = dados.descricao ?? veiculoAtual.descricao;
+        const cor = dados.cor ?? veiculoAtual.cor;
+
+        if (dados.id_categoria !== undefined) {
+
+            const categoriaExiste = await client.query(
+                `SELECT id FROM categoria_veiculo WHERE id = $1`,
+                [id_categoria]
+            );
+
+            if (categoriaExiste.rows.length === 0) {
+                await client.query('ROLLBACK');
+                return {
+                    success: false,
+                    message: "Categoria de veículo inválida"
+                };
+            }
+        }
+
+        if (dados.placa !== undefined) {
+
+            const placaExiste = await client.query(
+                `SELECT id_veiculo FROM veiculos
+                 WHERE placa = $1 AND id_veiculo <> $2`,
+                [placa, id_veiculo]
+            );
+
+            if (placaExiste.rows.length > 0) {
+                await client.query('ROLLBACK');
+                return {
+                    success: false,
+                    message: "Placa já cadastrada em outro veículo"
+                };
+            }
+        }
+
+        if (dados.renavam !== undefined) {
+
+            const renavamExiste = await client.query(
+                `SELECT id_veiculo FROM veiculos
+                 WHERE renavam = $1 AND id_veiculo <> $2`,
+                [renavam, id_veiculo]
+            );
+
+            if (renavamExiste.rows.length > 0) {
+                await client.query('ROLLBACK');
+                return {
+                    success: false,
+                    message: "Renavam já cadastrado em outro veículo"
+                };
+            }
+        }
+
+        const result = await client.query(
+            `UPDATE veiculos
+             SET renavam = $1,
+                 placa = $2,
+                 id_categoria = $3,
+                 descricao = $4,
+                 cor = $5
+             WHERE id_veiculo = $6
+             RETURNING id_veiculo, renavam, placa, id_categoria, descricao, cor`,
+            [renavam, placa, id_categoria, descricao, cor, id_veiculo]
+        );
+
+        if (dados.id_cliente !== undefined) {
+
+            const clienteExiste = await client.query(
+                `SELECT id FROM clientes WHERE id = $1`,
+                [dados.id_cliente]
+            );
+
+            if (clienteExiste.rows.length === 0) {
+                await client.query('ROLLBACK');
+                return {
+                    success: false,
+                    message: "Cliente não encontrado"
+                };
+            }
+
+            await client.query(
+                `DELETE FROM cliente_veiculo WHERE id_veiculo = $1`,
+                [id_veiculo]
+            );
+
+            await client.query(
+                `INSERT INTO cliente_veiculo (id_cliente, id_veiculo)
+                 VALUES ($1, $2)`,
+                [dados.id_cliente, id_veiculo]
+            );
+        }
+
+        await client.query('COMMIT');
+
+        return {
+            success: true,
+            message: "Veículo atualizado parcialmente com sucesso",
+            veiculo: result.rows[0]
+        };
+
+    } catch (error) {
+
+        await client.query('ROLLBACK');
+
+        return {
+            success: false,
+            message: "Erro ao atualizar veículo",
+            error: error.message
+        };
+
+    } finally {
+
+        client.release();
+    }
+}
+
 module.exports = {
     postVeiculo,
     getVeiculos,
     putVeiculo,
     deleteVeiculo,
-    getVeiculoById
+    getVeiculoById,
+    patchVeiculo
 
 };

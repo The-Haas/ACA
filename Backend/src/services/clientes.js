@@ -363,6 +363,135 @@ async function deleteCliente(id) {
     }
 }
 
+async function patchCliente(id, dados) {
+
+    try {
+
+        const regexNome = /^[A-Za-zÀ-ÿ\s]{3,}$/;
+        const regexEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        const regexTelefone = /^\(?\d{2}\)?\s?\d{4,5}-?\d{4}$/;
+        const regexSenha = /^(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*(),.?":{}|<>_\-\\[\]\/+=~`]).{8,}$/;
+
+
+        const atual = await db.query(
+            'SELECT * FROM clientes WHERE id = $1',
+            [id]
+        );
+
+        if (atual.rows.length === 0) {
+            return {
+                success: false,
+                message: 'Cliente não encontrado.'
+            };
+        }
+
+        const clienteAtual = atual.rows[0];
+
+
+        const nome = dados.nome ?? clienteAtual.nome;
+        const email = dados.email ?? clienteAtual.email;
+        const telefone = dados.telefone ?? clienteAtual.telefone;
+        const cpf = dados.cpf ?? clienteAtual.cpf;
+        let senha = dados.senha;
+
+        const emailNormalizado = email.trim().toLowerCase();
+        const cpfLimpo = cpf.replace(/\D/g, '');
+
+
+        if (dados.nome && !regexNome.test(nome)) {
+            return { success: false, message: 'Nome inválido.' };
+        }
+
+        if (dados.email && !regexEmail.test(emailNormalizado)) {
+            return { success: false, message: 'Email inválido.' };
+        }
+
+        if (dados.telefone && !regexTelefone.test(telefone)) {
+            return { success: false, message: 'Telefone inválido.' };
+        }
+
+        if (dados.cpf && !validarCPF(cpfLimpo)) {
+            return { success: false, message: 'CPF inválido.' };
+        }
+
+        if (dados.senha && !regexSenha.test(senha)) {
+            return {
+                success: false,
+                message: 'Senha deve ter 8 caracteres, 1 maiúscula, 1 número e 1 especial.'
+            };
+        }
+
+
+        const duplicadoCheck = await db.query(
+            `SELECT id, email, cpf, telefone
+             FROM clientes
+             WHERE (email = $1 OR cpf = $2 OR telefone = $3)
+             AND id != $4`,
+            [emailNormalizado, cpfLimpo, telefone, id]
+        );
+
+        if (duplicadoCheck.rows.length > 0) {
+
+            const c = duplicadoCheck.rows[0];
+
+            if (dados.email && c.email === emailNormalizado) {
+                return { success: false, message: "Email já está em uso." };
+            }
+
+            if (dados.cpf && c.cpf === cpfLimpo) {
+                return { success: false, message: "CPF já está cadastrado." };
+            }
+
+            if (dados.telefone && c.telefone === telefone) {
+                return { success: false, message: "Telefone já está cadastrado." };
+            }
+        }
+
+
+        let senhaFinal = clienteAtual.senha;
+
+        if (dados.senha) {
+            senhaFinal = await bcrypt.hash(senha, 10);
+        }
+
+
+        const result = await db.query(
+            `UPDATE clientes
+             SET nome = $1,
+                 email = $2,
+                 telefone = $3,
+                 cpf = $4,
+                 senha = $5
+             WHERE id = $6
+             RETURNING id, nome, email, telefone, cpf`,
+            [
+                nome,
+                emailNormalizado,
+                telefone,
+                cpfLimpo,
+                senhaFinal,
+                id
+            ]
+        );
+
+        return {
+            success: true,
+            message: 'Cliente atualizado parcialmente com sucesso.',
+            cliente: result.rows[0]
+        };
+
+    } catch (error) {
+
+        console.error(error);
+
+        return {
+            success: false,
+            message: 'Erro ao atualizar cliente.',
+            error: error.message
+        };
+    }
+}
+
 // Função para validar CPF usada na função postCliente
 function validarCPF(cpf) {
     cpf = cpf.replace(/\D/g, '');
@@ -405,5 +534,6 @@ module.exports = {
     getClientes,
     putCliente,
     deleteCliente,
-    getClienteById
+    getClienteById,
+    patchCliente
 };

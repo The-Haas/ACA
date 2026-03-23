@@ -66,11 +66,25 @@ async function deleteCliente(req, res) {
     }
 }
 
+async function patchCliente(req, res) {
+
+    const resultado = await clienteService.patchCliente(
+        req.params.id,
+        req.body
+    );
+
+    if (resultado.success) {
+        res.status(200).json(resultado);
+    } else {
+        res.status(400).json(resultado);
+    }
+}
 
 module.exports = {
     postCliente,
     getClientes,
     putCliente,
     deleteCliente,
-    getClienteById
+    getClienteById,
+    patchCliente
 };

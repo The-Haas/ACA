@@ -479,7 +479,7 @@ async function deletePrestador(id) {
             };
         }
 
-        // ⚠️ exemplo de validação (caso tenha serviços vinculados futuramente)
+        //  exemplo de validação (caso tenha serviços vinculados futuramente)
         // const vinculo = await db.query(
         //     'SELECT id FROM servicos WHERE id_prestador = $1 LIMIT 1',
         //     [id]
@@ -492,7 +492,7 @@ async function deletePrestador(id) {
         //     };
         // }
 
-        // 🧹 remove vínculos primeiro (boa prática)
+        // remove vínculos primeiro (boa prática)
         await db.query(
             'DELETE FROM prestador_guinchos WHERE id_prestador = $1',
             [id]
@@ -503,7 +503,7 @@ async function deletePrestador(id) {
             [id]
         );
 
-        // 🗑️ deleta prestador
+        // deleta prestador
         await db.query(
             'DELETE FROM prestadores WHERE id = $1',
             [id]
@@ -526,10 +526,237 @@ async function deletePrestador(id) {
     }
 }
 
+async function patchPrestador(id, dados) {
+
+    const client = await db.pool.connect();
+
+    try {
+
+        await client.query('BEGIN');
+
+        // busca prestador atual
+        const atual = await client.query(
+            `SELECT * FROM prestadores WHERE id = $1`,
+            [id]
+        );
+
+        if (!atual.rows || atual.rows.length === 0) {
+            await client.query('ROLLBACK');
+            return {
+                success: false,
+                message: "Prestador não encontrado."
+            };
+        }
+
+        const prestadorAtual = atual.rows[0];
+
+        // REGEX
+        const regexEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        const regexTelefone = /^\(?\d{2}\)?\s?\d{4,5}-?\d{4}$/;
+        const regexSenha = /^(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*(),.?":{}|<>_\-\\[\]\/+=~`]).{8,}$/;
+
+        // merge dos dados
+        const cnpj = dados.cnpj ? dados.cnpj.replace(/\D/g, '') : prestadorAtual.cnpj;
+        const razao_social = dados.razao_social ?? prestadorAtual.razao_social;
+        const nome_fantasia = dados.nome_fantasia ?? prestadorAtual.nome_fantasia;
+        const email = dados.email ? dados.email.toLowerCase() : prestadorAtual.email;
+        const telefone = dados.telefone ?? prestadorAtual.telefone;
+
+        let senhaHash = prestadorAtual.senha;
+
+        // validações (só se vier no body)
+
+        if (dados.cnpj !== undefined && !validarCNPJ(dados.cnpj)) {
+            await client.query('ROLLBACK');
+            return { success: false, message: 'CNPJ inválido.' };
+        }
+
+        if (dados.razao_social !== undefined && razao_social.length < 3) {
+            await client.query('ROLLBACK');
+            return { success: false, message: 'Razão social inválida.' };
+        }
+
+        if (dados.email !== undefined && !regexEmail.test(dados.email)) {
+            await client.query('ROLLBACK');
+            return { success: false, message: 'Email inválido.' };
+        }
+
+        if (dados.telefone !== undefined && !regexTelefone.test(dados.telefone)) {
+            await client.query('ROLLBACK');
+            return { success: false, message: 'Telefone inválido.' };
+        }
+
+        if (dados.senha !== undefined) {
+
+            if (!regexSenha.test(dados.senha)) {
+                await client.query('ROLLBACK');
+                return {
+                    success: false,
+                    message: 'Senha fraca.'
+                };
+            }
+
+            senhaHash = await bcrypt.hash(dados.senha, 10);
+        }
+
+        // duplicidade
+        if (
+            dados.email !== undefined ||
+            dados.cnpj !== undefined ||
+            dados.telefone !== undefined
+        ) {
+
+            const duplicadoCheck = await client.query(
+                `SELECT id, email, cnpj, telefone
+                 FROM prestadores
+                 WHERE (email = $1 OR cnpj = $2 OR telefone = $3)
+                 AND id != $4`,
+                [email, cnpj, telefone, id]
+            );
+
+            if (duplicadoCheck.rows.length > 0) {
+
+                const p = duplicadoCheck.rows[0];
+
+                if (p.email === email) {
+                    await client.query('ROLLBACK');
+                    return { success: false, message: "Email já está em uso." };
+                }
+
+                if (p.cnpj === cnpj) {
+                    await client.query('ROLLBACK');
+                    return { success: false, message: "CNPJ já cadastrado." };
+                }
+
+                if (p.telefone === telefone) {
+                    await client.query('ROLLBACK');
+                    return { success: false, message: "Telefone já cadastrado." };
+                }
+            }
+        }
+
+        // UPDATE
+        const result = await client.query(
+            `UPDATE prestadores
+             SET cnpj = $1,
+                 razao_social = $2,
+                 nome_fantasia = $3,
+                 email = $4,
+                 senha = $5,
+                 telefone = $6
+             WHERE id = $7
+             RETURNING id, cnpj, razao_social, nome_fantasia, email, telefone`,
+            [
+                cnpj,
+                razao_social,
+                nome_fantasia,
+                email,
+                senhaHash,
+                telefone,
+                id
+            ]
+        );
+
+        // categorias guincho
+        if (dados.categorias_guincho !== undefined) {
+
+            await client.query(
+                `DELETE FROM prestador_guinchos WHERE id_prestador = $1`,
+                [id]
+            );
+
+            for (const cat of dados.categorias_guincho) {
+                await client.query(
+                    `INSERT INTO prestador_guinchos (id_prestador, id_categoria_guincho)
+                     VALUES ($1, $2)`,
+                    [id, cat]
+                );
+            }
+        }
+
+        // categorias serviço
+        if (dados.categorias_servico !== undefined) {
+
+            await client.query(
+                `DELETE FROM prestador_servicos WHERE id_prestador = $1`,
+                [id]
+            );
+
+            for (const cat of dados.categorias_servico) {
+                await client.query(
+                    `INSERT INTO prestador_servicos (id_prestador, id_categoria_servico)
+                     VALUES ($1, $2)`,
+                    [id, cat]
+                );
+            }
+        }
+
+        await client.query('COMMIT');
+
+        // retorna completo (igual GET BY ID)
+        const completo = await db.query(`
+            SELECT 
+                p.id,
+                p.cnpj,
+                p.razao_social,
+                p.nome_fantasia,
+                p.email,
+                p.telefone,
+
+                COALESCE(
+                    ARRAY_AGG(DISTINCT cg.nome) 
+                    FILTER (WHERE cg.id IS NOT NULL), '{}'
+                ) AS categorias_guincho,
+
+                COALESCE(
+                    ARRAY_AGG(DISTINCT cs.nome) 
+                    FILTER (WHERE cs.id IS NOT NULL), '{}'
+                ) AS categorias_servico
+
+            FROM prestadores p
+
+            LEFT JOIN prestador_guinchos pg 
+                ON pg.id_prestador = p.id
+
+            LEFT JOIN categoria_guincho cg
+                ON cg.id = pg.id_categoria_guincho
+
+            LEFT JOIN prestador_servicos ps 
+                ON ps.id_prestador = p.id
+
+            LEFT JOIN categoria_servicos cs
+                ON cs.id = ps.id_categoria_servico
+
+            WHERE p.id = $1
+            GROUP BY p.id
+        `, [id]);
+
+        return {
+            success: true,
+            message: "Prestador atualizado parcialmente com sucesso.",
+            prestador: completo.rows[0]
+        };
+
+    } catch (error) {
+
+        await client.query('ROLLBACK');
+
+        return {
+            success: false,
+            message: "Erro ao atualizar prestador.",
+            error: error.message
+        };
+
+    } finally {
+        client.release();
+    }
+}
+
 module.exports = {
     postPrestador,
     getPrestador,
     getPrestadorById,
     putPrestador,
-    deletePrestador
+    deletePrestador,
+    patchPrestador
 };

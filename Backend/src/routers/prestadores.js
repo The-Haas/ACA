@@ -7,6 +7,7 @@ module.exports = (app) => {
     app.get('/prestadores/:id', prestadoresController.getPrestadorById);
     app.put('/prestadores/:id', prestadoresController.putPrestador);
     app.delete('/prestadores/:id', prestadoresController.deletePrestador);
+    app.patch('/prestadores/:id', prestadoresController.patchPrestador);
 
 
 };
