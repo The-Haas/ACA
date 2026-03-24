@@ -10,7 +10,6 @@ async function postPrestador(dados) {
         email,
         senha,
         telefone,
-        categorias_guincho = [],
         categorias_servico = []
     } = dados;
 
@@ -64,14 +63,6 @@ async function postPrestador(dados) {
             };
         }
 
-        // valida categorias
-        if (!Array.isArray(categorias_guincho) || categorias_guincho.length === 0) {
-            return {
-                success: false,
-                message: 'Informe ao menos uma categoria de guincho.'
-            };
-        }
-
         if (!Array.isArray(categorias_servico) || categorias_servico.length === 0) {
             return {
                 success: false,
@@ -79,7 +70,7 @@ async function postPrestador(dados) {
             };
         }
 
-        // 🔎 verifica duplicidade
+        //  verifica duplicidade
         const check = await db.query(
             `SELECT email, cnpj, telefone
              FROM prestadores
@@ -104,10 +95,10 @@ async function postPrestador(dados) {
             }
         }
 
-        // 🔐 hash senha
+        // hash senha
         const hashedPassword = await bcrypt.hash(senha, 10);
 
-        // 🧾 insert prestador
+        //  insert prestador
         const result = await db.query(
             `INSERT INTO prestadores
             (cnpj, razao_social, nome_fantasia, email, senha, telefone)
@@ -125,16 +116,7 @@ async function postPrestador(dados) {
 
         const idPrestador = result.rows[0].id;
 
-        // 🚚 insert guinchos
-        for (const idCategoria of categorias_guincho) {
-            await db.query(
-                `INSERT INTO prestador_guinchos (id_prestador, id_categoria_guincho)
-                 VALUES ($1, $2)`,
-                [idPrestador, idCategoria]
-            );
-        }
-
-        // 🛠️ insert serviços
+        // insert serviços
         for (const idCategoria of categorias_servico) {
             await db.query(
                 `INSERT INTO prestador_servicos (id_prestador, id_categoria_servico)
@@ -162,7 +144,7 @@ async function postPrestador(dados) {
 }
 
 
-// ✅ FUNÇÃO DE VALIDAÇÃO REAL DE CNPJ
+//  FUNÇÃO DE VALIDAÇÃO REAL DE CNPJ
 function validarCNPJ(cnpj) {
 
     cnpj = cnpj.replace(/\D/g, '');
@@ -210,40 +192,28 @@ async function getPrestador() {
 
         const result = await db.query(`
             SELECT 
-                p.id,
-                p.cnpj,
-                p.razao_social,
-                p.nome_fantasia,
-                p.email,
-                p.telefone,
+    p.id,
+    p.cnpj,
+    p.razao_social,
+    p.nome_fantasia,
+    p.email,
+    p.telefone,
 
-                COALESCE(
-                    ARRAY_AGG(DISTINCT cg.nome) 
-                    FILTER (WHERE cg.id IS NOT NULL), '{}'
-                ) AS categorias_guincho,
+    COALESCE(
+        ARRAY_AGG(DISTINCT cs.nome) 
+        FILTER (WHERE cs.id IS NOT NULL), '{}'
+    ) AS categorias_servico
 
-                COALESCE(
-                    ARRAY_AGG(DISTINCT cs.nome) 
-                    FILTER (WHERE cs.id IS NOT NULL), '{}'
-                ) AS categorias_servico
+FROM prestadores p
 
-            FROM prestadores p
+LEFT JOIN prestador_servicos ps 
+    ON ps.id_prestador = p.id
 
-            LEFT JOIN prestador_guinchos pg 
-                ON pg.id_prestador = p.id
+LEFT JOIN categoria_servicos cs
+    ON cs.id = ps.id_categoria_servico
 
-            LEFT JOIN categoria_guincho cg
-                ON cg.id = pg.id_categoria_guincho
-
-            LEFT JOIN prestador_servicos ps 
-                ON ps.id_prestador = p.id
-
-            LEFT JOIN categoria_servicos cs  -- ✅ AQUI ESTÁ A CORREÇÃO
-                ON cs.id = ps.id_categoria_servico
-
-            GROUP BY p.id
-            ORDER BY p.id ASC
-        `);
+GROUP BY p.id
+ORDER BY p.id ASC`);
 
         return {
             success: true,
@@ -267,40 +237,28 @@ async function getPrestadorById(id) {
 
         const result = await db.query(`
             SELECT 
-                p.id,
-                p.cnpj,
-                p.razao_social,
-                p.nome_fantasia,
-                p.email,
-                p.telefone,
+    p.id,
+    p.cnpj,
+    p.razao_social,
+    p.nome_fantasia,
+    p.email,
+    p.telefone,
 
-                COALESCE(
-                    ARRAY_AGG(DISTINCT cg.nome) 
-                    FILTER (WHERE cg.id IS NOT NULL), '{}'
-                ) AS categorias_guincho,
+    COALESCE(
+        ARRAY_AGG(DISTINCT cs.nome) 
+        FILTER (WHERE cs.id IS NOT NULL), '{}'
+    ) AS categorias_servico
 
-                COALESCE(
-                    ARRAY_AGG(DISTINCT cs.nome) 
-                    FILTER (WHERE cs.id IS NOT NULL), '{}'
-                ) AS categorias_servico
+FROM prestadores p
 
-            FROM prestadores p
+LEFT JOIN prestador_servicos ps 
+    ON ps.id_prestador = p.id
 
-            LEFT JOIN prestador_guinchos pg 
-                ON pg.id_prestador = p.id
+LEFT JOIN categoria_servicos cs
+    ON cs.id = ps.id_categoria_servico
 
-            LEFT JOIN categoria_guincho cg
-                ON cg.id = pg.id_categoria_guincho
-
-            LEFT JOIN prestador_servicos ps 
-                ON ps.id_prestador = p.id
-
-            LEFT JOIN categoria_servicos cs  -- ✅ corrigido
-                ON cs.id = ps.id_categoria_servico
-
-            WHERE p.id = $1
-            GROUP BY p.id
-        `, [id]);
+WHERE p.id = $1
+GROUP BY p.id`, [id]);
 
         if (result.rows.length === 0) {
             return {
@@ -492,12 +450,6 @@ async function deletePrestador(id) {
         //     };
         // }
 
-        // remove vínculos primeiro (boa prática)
-        await db.query(
-            'DELETE FROM prestador_guinchos WHERE id_prestador = $1',
-            [id]
-        );
-
         await db.query(
             'DELETE FROM prestador_servicos WHERE id_prestador = $1',
             [id]
@@ -657,22 +609,6 @@ async function patchPrestador(id, dados) {
             ]
         );
 
-        // categorias guincho
-        if (dados.categorias_guincho !== undefined) {
-
-            await client.query(
-                `DELETE FROM prestador_guinchos WHERE id_prestador = $1`,
-                [id]
-            );
-
-            for (const cat of dados.categorias_guincho) {
-                await client.query(
-                    `INSERT INTO prestador_guinchos (id_prestador, id_categoria_guincho)
-                     VALUES ($1, $2)`,
-                    [id, cat]
-                );
-            }
-        }
 
         // categorias serviço
         if (dados.categorias_servico !== undefined) {
@@ -703,10 +639,6 @@ async function patchPrestador(id, dados) {
                 p.email,
                 p.telefone,
 
-                COALESCE(
-                    ARRAY_AGG(DISTINCT cg.nome) 
-                    FILTER (WHERE cg.id IS NOT NULL), '{}'
-                ) AS categorias_guincho,
 
                 COALESCE(
                     ARRAY_AGG(DISTINCT cs.nome) 
@@ -714,12 +646,6 @@ async function patchPrestador(id, dados) {
                 ) AS categorias_servico
 
             FROM prestadores p
-
-            LEFT JOIN prestador_guinchos pg 
-                ON pg.id_prestador = p.id
-
-            LEFT JOIN categoria_guincho cg
-                ON cg.id = pg.id_categoria_guincho
 
             LEFT JOIN prestador_servicos ps 
                 ON ps.id_prestador = p.id
