@@ -3,6 +3,7 @@ const veiculosRoute = require('./veiculos');
 const categoriaVeiculoRoute = require('./categoriaVeiculo');
 const categoriaServicoRoute = require('./categoriaServico');
 const prestadoresRoute = require('./prestadores');
+const ordemServicoRoute = require('./ordemServico');
 
 module.exports = (app) => {
     clientesRoute(app);
@@ -10,4 +11,5 @@ module.exports = (app) => {
     categoriaVeiculoRoute(app);
     categoriaServicoRoute(app);
     prestadoresRoute(app);
+    ordemServicoRoute(app);
 }
