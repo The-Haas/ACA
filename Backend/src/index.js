@@ -9,6 +9,9 @@ const app = express();
 
 const PORT = 3000;
 
+const authRoutes = require('./routers/auth');
+
+
 // Permitir JSON no corpo
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
@@ -17,6 +20,7 @@ app.use(cors({
   origin: '*',
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE']
 }));
+app.use('/auth', authRoutes);
 
 require('./routers')(app);
 

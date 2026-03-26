@@ -4,6 +4,7 @@ const categoriaVeiculoRoute = require('./categoriaVeiculo');
 const categoriaServicoRoute = require('./categoriaServico');
 const prestadoresRoute = require('./prestadores');
 const ordemServicoRoute = require('./ordemServico');
+const authRoute = require('./auth');
 
 module.exports = (app) => {
     clientesRoute(app);
@@ -12,4 +13,5 @@ module.exports = (app) => {
     categoriaServicoRoute(app);
     prestadoresRoute(app);
     ordemServicoRoute(app);
+    authRoute(app);
 }
