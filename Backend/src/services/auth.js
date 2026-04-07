@@ -1,8 +1,9 @@
 const db = require('../config');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcrypt');
+require('dotenv').config();
 
-const SECRET = "projeto_autoSOS";
+const SECRET = process.env.JWT_SECRET;
 
 async function login(email, senha) {
     const client = await db.pool.connect();

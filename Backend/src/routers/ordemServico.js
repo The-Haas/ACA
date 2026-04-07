@@ -1,9 +1,11 @@
 const ordemServicoController = require('../controllers/ordemServico.js');
 
+const { autenticarToken, apenasCliente, apenasPrestador } = require('../middlewares/authMiddleware');
+
 module.exports = (app) => {
 
-    app.post('/ordemServico', ordemServicoController.criarOrdemServico);
-    app.patch('/ordemServico/:id/aceitar', ordemServicoController.aceitarOrdemServico);
-    app.patch('/ordemServico/:id/finalizar', ordemServicoController.finalizarOrdemServico);
+    app.post('/ordemServico', autenticarToken, apenasCliente, ordemServicoController.criarOrdemServico);
+    app.patch('/ordemServico/:id/aceitar', autenticarToken, apenasPrestador, ordemServicoController.aceitarOrdemServico);
+    app.patch('/ordemServico/:id/finalizar', autenticarToken, apenasCliente, ordemServicoController.finalizarOrdemServico);
 
 };
