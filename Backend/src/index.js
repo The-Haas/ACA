@@ -33,3 +33,4 @@ app.listen(PORT, () => {
     console.log('API Rodando na porta ' + PORT);
     console.log('Acesse: http://localhost:' + PORT);
 });
+ 
