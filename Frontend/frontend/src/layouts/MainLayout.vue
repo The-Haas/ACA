@@ -47,6 +47,51 @@
             color="red-14"
           >
             <q-tooltip>Perfil</q-tooltip>
+
+            <q-menu
+              anchor="bottom right"
+              self="top right"
+              transition-show="jump-down"
+              transition-hide="jump-up"
+            >
+              <q-list class="profile-menu">
+
+                <q-item
+                  clickable
+                  v-close-popup
+                >
+                  <q-item-section avatar>
+                    <q-icon name="support_agent" color="red-14" />
+                  </q-item-section>
+
+                  <q-item-section>
+                    <q-item-label>Chamados</q-item-label>
+                    <q-item-label caption>
+                      Acompanhe ou gerencie atendimentos
+                    </q-item-label>
+                  </q-item-section>
+                </q-item>
+
+                <q-separator />
+
+                <q-item
+                  clickable
+                  v-close-popup
+                >
+                  <q-item-section avatar>
+                    <q-icon name="manage_accounts" color="red-14" />
+                  </q-item-section>
+
+                  <q-item-section>
+                    <q-item-label>Minha conta</q-item-label>
+                    <q-item-label caption>
+                      Alterar dados do perfil
+                    </q-item-label>
+                  </q-item-section>
+                </q-item>
+
+              </q-list>
+            </q-menu>
           </q-btn>
 
           <q-btn
@@ -168,6 +213,27 @@ function sair () {
   display: flex;
   align-items: center;
   gap: 8px;
+}
+
+.profile-menu {
+  min-width: 255px;
+  padding: 6px 0;
+  border-radius: 10px;
+}
+
+.profile-menu .q-item {
+  padding: 12px 15px;
+}
+
+.profile-menu .q-item__label {
+  font-weight: 700;
+  color: #1f2937;
+}
+
+.profile-menu .q-item__label--caption {
+  font-size: 12px;
+  font-weight: 400;
+  color: #6b7280;
 }
 
 .main-footer {
