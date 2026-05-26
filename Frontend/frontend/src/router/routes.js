@@ -22,13 +22,26 @@ const routes = [
   {
     path: '/home',
     component: () => import('layouts/MainLayout.vue'),
-    meta: {
-      requiresAuth: true
-    },
     children: [
       {
         path: '',
         component: () => import('pages/IndexPage.vue')
+      },
+      {
+        path: 'localizacao',
+        component: () => import('pages/LocalizacaoPage.vue')
+      },
+      {
+        path: 'tipo-localizacao',
+        component: () => import('pages/TipoLocalizacaoPage.vue')
+      },
+      {
+        path: 'descricao-problema',
+        component: () => import('pages/DescricaoProblemaPage.vue')
+      },
+      {
+        path: 'acompanhamento',
+        component: () => import('pages/AcompanhamentoPage.vue')
       }
     ]
   },
