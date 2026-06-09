@@ -10,11 +10,11 @@
 
         <div>
           <div class="status-title-white">
-            Confirmação do Mecânico
+            Confirmação do Prestador
           </div>
 
           <div class="status-text-white">
-            O serviço foi aceito e está a caminho.
+            O serviço foi aceito e o prestador está a caminho.
           </div>
         </div>
       </q-card>
@@ -28,7 +28,7 @@
 
             <div class="status-current">
               <q-icon name="local_shipping" size="18px" color="red-14" />
-              Mecânico se dirigindo ao local
+              Prestador se dirigindo ao local
             </div>
           </div>
 
@@ -103,7 +103,7 @@
 
           <div>
             <div class="mechanic-name">
-              Mecânico Carlos
+              {{ orcamentoContratado.nome || 'Prestador selecionado' }}
             </div>
 
             <div class="mechanic-status">
@@ -123,6 +123,16 @@
         <div class="summary-row">
           <span>Serviço solicitado</span>
           <strong>{{ servicoSelecionado.nome || 'Não informado' }}</strong>
+        </div>
+
+        <div class="summary-row">
+          <span>Prestador contratado</span>
+          <strong>{{ orcamentoContratado.nome || 'Não informado' }}</strong>
+        </div>
+
+        <div class="summary-row">
+          <span>Valor contratado</span>
+          <strong>{{ valorContratado }}</strong>
         </div>
 
         <div class="summary-row">
@@ -150,7 +160,7 @@
         @click="abrirAvaliacao"
       >
         <q-icon name="star" size="19px" class="q-mr-sm" />
-        Avaliação
+        Avaliação / Finalizar
       </q-btn>
     </section>
 
@@ -197,9 +207,9 @@
 
           <q-btn
             unelevated
-            label="Enviar avaliação"
+            label="Finalizar atendimento"
             color="red-14"
-            @click="enviarAvaliacao"
+            @click="finalizarAtendimento"
           />
         </q-card-actions>
       </q-card>
@@ -210,8 +220,11 @@
 
 <script setup>
 import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
+import { useRouter } from 'vue-router'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
+
+const router = useRouter()
 
 const map = ref(null)
 const usuarioMarker = ref(null)
@@ -232,13 +245,25 @@ const mecanicoLongitude = ref(-52.9965)
 const servicoSelecionado = ref({})
 const tipoLocalizacao = ref({})
 const descricaoProblema = ref('')
+const orcamentoContratado = ref({})
 
 const latitudeFormatada = computed(() => {
-  return latitude.value ? latitude.value.toFixed(6) : '-'
+  return latitude.value ? Number(latitude.value).toFixed(6) : '-'
 })
 
 const longitudeFormatada = computed(() => {
-  return longitude.value ? longitude.value.toFixed(6) : '-'
+  return longitude.value ? Number(longitude.value).toFixed(6) : '-'
+})
+
+const valorContratado = computed(() => {
+  if (!orcamentoContratado.value.preco) {
+    return 'Não informado'
+  }
+
+  return Number(orcamentoContratado.value.preco).toLocaleString('pt-BR', {
+    style: 'currency',
+    currency: 'BRL'
+  })
 })
 
 const usuarioIcon = L.divIcon({
@@ -283,15 +308,13 @@ function carregarDadosSalvos () {
   const servicoSalvo = localStorage.getItem('servico_selecionado')
   const tipoSalvo = localStorage.getItem('tipo_localizacao')
   const descricaoSalva = localStorage.getItem('descricao_problema')
+  const orcamentoSalvo = localStorage.getItem('orcamento_contratado')
 
   if (localizacaoSalva) {
     const localizacao = JSON.parse(localizacaoSalva)
 
-    latitude.value = localizacao.latitude
-    longitude.value = localizacao.longitude
-
-    mecanicoLatitude.value = localizacao.latitude + 0.004
-    mecanicoLongitude.value = localizacao.longitude - 0.004
+    latitude.value = Number(localizacao.latitude)
+    longitude.value = Number(localizacao.longitude)
   }
 
   if (servicoSalvo) {
@@ -305,6 +328,47 @@ function carregarDadosSalvos () {
   if (descricaoSalva) {
     descricaoProblema.value = descricaoSalva
   }
+
+  if (orcamentoSalvo) {
+    orcamentoContratado.value = JSON.parse(orcamentoSalvo)
+    tempoEstimado.value = orcamentoContratado.value.tempo || 12
+    definirLocalizacaoPrestador(orcamentoContratado.value)
+  } else {
+    orcamentoContratado.value = {
+      id: 1,
+      nome: 'Prestador selecionado',
+      tempo: 12,
+      preco: 0
+    }
+
+    definirLocalizacaoPrestador(orcamentoContratado.value)
+  }
+}
+
+function definirLocalizacaoPrestador (orcamento) {
+  const deslocamentos = {
+    1: {
+      lat: 0.006,
+      lng: -0.006
+    },
+    2: {
+      lat: -0.004,
+      lng: 0.005
+    },
+    3: {
+      lat: 0.003,
+      lng: 0.004
+    },
+    4: {
+      lat: -0.002,
+      lng: -0.002
+    }
+  }
+
+  const deslocamento = deslocamentos[orcamento.id] || deslocamentos[1]
+
+  mecanicoLatitude.value = Number(latitude.value) + deslocamento.lat
+  mecanicoLongitude.value = Number(longitude.value) + deslocamento.lng
 }
 
 function iniciarMapa () {
@@ -332,7 +396,7 @@ function iniciarMapa () {
     icon: mecanicoIcon
   }).addTo(map.value)
 
-  mecanicoMarker.value.bindTooltip('Mecânico Carlos', {
+  mecanicoMarker.value.bindTooltip(orcamentoContratado.value.nome || 'Prestador selecionado', {
     permanent: true,
     direction: 'bottom',
     offset: [0, 20],
@@ -349,14 +413,7 @@ function iniciarMapa () {
     dashArray: '8, 8'
   }).addTo(map.value)
 
-  const bounds = L.latLngBounds([
-    [latitude.value, longitude.value],
-    [mecanicoLatitude.value, mecanicoLongitude.value]
-  ])
-
-  map.value.fitBounds(bounds, {
-    padding: [80, 80]
-  })
+  centralizarMapa()
 
   setTimeout(() => {
     map.value.invalidateSize()
@@ -382,18 +439,24 @@ function abrirAvaliacao () {
   modalAvaliacao.value = true
 }
 
-function enviarAvaliacao () {
+function finalizarAtendimento () {
   localStorage.setItem('avaliacao_atendimento', JSON.stringify({
     nota: avaliacao.value,
-    comentario: comentario.value
+    comentario: comentario.value,
+    prestador: orcamentoContratado.value
   }))
+
+  localStorage.setItem('status_atendimento', 'finalizado')
 
   modalAvaliacao.value = false
 
-  console.log('Avaliação enviada:', {
+  console.log('Atendimento finalizado:', {
     nota: avaliacao.value,
-    comentario: comentario.value
+    comentario: comentario.value,
+    prestador: orcamentoContratado.value
   })
+
+  router.push('/home')
 }
 </script>
 

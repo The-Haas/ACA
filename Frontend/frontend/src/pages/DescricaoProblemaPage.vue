@@ -98,7 +98,7 @@ function continuar () {
 
   console.log('Descrição do problema:', descricao.value.trim())
 
-  router.push('/home/acompanhamento')
+  router.push('/home/resumo-chamado')
 }
 </script>
 
