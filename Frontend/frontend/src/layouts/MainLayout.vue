@@ -59,6 +59,7 @@
                 <q-item
                   clickable
                   v-close-popup
+                  @click="router.push('/home/acompanhamento')"
                 >
                   <q-item-section avatar>
                     <q-icon name="support_agent" color="red-14" />
@@ -68,6 +69,25 @@
                     <q-item-label>Chamados</q-item-label>
                     <q-item-label caption>
                       Acompanhe ou gerencie atendimentos
+                    </q-item-label>
+                  </q-item-section>
+                </q-item>
+
+                <q-separator />
+
+                <q-item
+                  clickable
+                  v-close-popup
+                  @click="abrirModalVeiculo"
+                >
+                  <q-item-section avatar>
+                    <q-icon name="directions_car" color="red-14" />
+                  </q-item-section>
+
+                  <q-item-section>
+                    <q-item-label>Meus veículos</q-item-label>
+                    <q-item-label caption>
+                      Cadastrar ou gerenciar veículos
                     </q-item-label>
                   </q-item-section>
                 </q-item>
@@ -118,13 +138,132 @@
       </div>
     </q-footer>
 
+    <!-- Modal cadastro de veículo -->
+    <q-dialog v-model="modalVeiculo" persistent>
+      <q-card class="veiculo-modal-card">
+        <q-card-section class="text-center q-pb-none">
+          <div class="veiculo-modal-icon">
+            <q-icon name="directions_car" size="36px" color="red-14" />
+          </div>
+
+          <div class="text-h6 text-bold text-grey-9 q-mt-sm">
+            Cadastrar veículo
+          </div>
+
+          <div class="text-grey-6 text-caption q-mt-xs">
+            Preencha os dados do seu veículo
+          </div>
+        </q-card-section>
+
+        <q-card-section class="q-gutter-sm">
+          <q-input
+            v-model="novoVeiculo.descricao"
+            outlined
+            label="Descrição (ex: Gol 2018)"
+            dense
+            bg-color="grey-1"
+          />
+
+          <q-input
+            v-model="novoVeiculo.placa"
+            outlined
+            label="Placa"
+            dense
+            bg-color="grey-1"
+            mask="AAA-#NNN"
+          />
+
+          <q-input
+            v-model="novoVeiculo.renavam"
+            outlined
+            label="RENAVAM"
+            dense
+            bg-color="grey-1"
+            type="number"
+          />
+
+          <q-input
+            v-model="novoVeiculo.cor"
+            outlined
+            label="Cor"
+            dense
+            bg-color="grey-1"
+          />
+
+          <q-select
+            v-model="novoVeiculo.id_categoria"
+            :options="categoriasVeiculo"
+            option-value="id"
+            option-label="nome"
+            emit-value
+            map-options
+            outlined
+            label="Categoria"
+            dense
+            bg-color="grey-1"
+            :loading="carregandoCategorias"
+          />
+        </q-card-section>
+
+        <q-card-section v-if="mensagemModal">
+          <div :class="sucesso ? 'mensagem-sucesso' : 'mensagem-erro'">
+            {{ mensagemModal }}
+          </div>
+        </q-card-section>
+
+        <q-card-actions align="right" class="q-pa-md q-pt-none">
+          <q-btn
+            flat
+            label="Cancelar"
+            color="grey-8"
+            @click="fecharModal"
+            :disable="salvandoVeiculo"
+          />
+
+          <q-btn
+            unelevated
+            label="Cadastrar"
+            color="red-14"
+            :loading="salvandoVeiculo"
+            @click="cadastrarVeiculo"
+          />
+        </q-card-actions>
+      </q-card>
+    </q-dialog>
+
   </q-layout>
 </template>
 
 <script setup>
+import { onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
+import { api } from 'src/boot/axios'
 
 const router = useRouter()
+
+const modalVeiculo = ref(false)
+const salvandoVeiculo = ref(false)
+const carregandoCategorias = ref(false)
+const mensagemModal = ref('')
+const sucesso = ref(false)
+const categoriasVeiculo = ref([])
+
+const novoVeiculo = ref({
+  descricao: '',
+  placa: '',
+  renavam: '',
+  cor: '',
+  id_categoria: null
+})
+
+function decodeJWT (token) {
+  try {
+    const payload = token.split('.')[1]
+    return JSON.parse(atob(payload))
+  } catch {
+    return null
+  }
+}
 
 function voltar () {
   router.back()
@@ -134,6 +273,99 @@ function sair () {
   localStorage.removeItem('token')
   router.push('/login')
 }
+
+async function carregarCategorias () {
+  carregandoCategorias.value = true
+
+  try {
+    const response = await api.get('/categoriaVeiculo')
+
+    // aceita tanto array direto quanto { success, data }
+    if (Array.isArray(response.data)) {
+      categoriasVeiculo.value = response.data
+    } else if (response.data.success) {
+      categoriasVeiculo.value = response.data.data
+    }
+  } catch (err) {
+    console.error('Erro ao carregar categorias:', err)
+  } finally {
+    carregandoCategorias.value = false
+  }
+}
+
+function abrirModalVeiculo () {
+  mensagemModal.value = ''
+  sucesso.value = false
+  novoVeiculo.value = {
+    descricao: '',
+    placa: '',
+    renavam: '',
+    cor: '',
+    id_categoria: null
+  }
+  modalVeiculo.value = true
+}
+
+function fecharModal () {
+  modalVeiculo.value = false
+  mensagemModal.value = ''
+}
+
+async function cadastrarVeiculo () {
+  mensagemModal.value = ''
+  sucesso.value = false
+
+  const { descricao, placa, renavam, cor, id_categoria } = novoVeiculo.value
+
+  if (!descricao || !placa || !renavam || !cor || !id_categoria) {
+    mensagemModal.value = 'Preencha todos os campos.'
+    return
+  }
+
+  const token = localStorage.getItem('token')
+  const tokenDecodificado = decodeJWT(token)
+  const id_cliente = tokenDecodificado?.id
+
+  if (!id_cliente) {
+    mensagemModal.value = 'Sessão expirada. Faça login novamente.'
+    return
+  }
+
+  salvandoVeiculo.value = true
+
+  try {
+    const response = await api.post('/veiculos', {
+      descricao,
+      placa,
+      renavam,
+      cor,
+      id_categoria,
+      id_cliente
+    })
+
+    if (!response.data.success) {
+      mensagemModal.value = response.data.message || 'Erro ao cadastrar veículo.'
+      return
+    }
+
+    sucesso.value = true
+    mensagemModal.value = 'Veículo cadastrado com sucesso!'
+
+    setTimeout(() => {
+      fecharModal()
+    }, 1500)
+
+  } catch (err) {
+    console.error('Erro ao cadastrar veículo:', err)
+    mensagemModal.value = 'Erro de conexão com o servidor.'
+  } finally {
+    salvandoVeiculo.value = false
+  }
+}
+
+onMounted(() => {
+  carregarCategorias()
+})
 </script>
 
 <style lang="scss">
@@ -246,6 +478,45 @@ function sair () {
   padding: 15px;
   font-size: 14px;
   line-height: 1.4;
+}
+
+.veiculo-modal-card {
+  width: 100%;
+  max-width: 440px;
+  border-radius: 20px;
+}
+
+.veiculo-modal-icon {
+  width: 72px;
+  height: 72px;
+  background: #ffe1e1;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 16px auto 0;
+}
+
+.mensagem-erro {
+  background: #ffe5e5;
+  color: #b00020;
+  border: 1px solid #ffb3b3;
+  padding: 10px 12px;
+  border-radius: 10px;
+  font-weight: 700;
+  text-align: center;
+  font-size: 13px;
+}
+
+.mensagem-sucesso {
+  background: #dcfce7;
+  color: #166534;
+  border: 1px solid #bbf7d0;
+  padding: 10px 12px;
+  border-radius: 10px;
+  font-weight: 700;
+  text-align: center;
+  font-size: 13px;
 }
 
 @media (max-width: 700px) {

@@ -143,6 +143,27 @@ async function getVeiculos() {
     }
 }
 
+async function getVeiculosByCliente(id_cliente) {
+    try {
+        const result = await db.query(`
+            SELECT
+                v.id_veiculo,
+                v.placa,
+                v.descricao,
+                v.cor,
+                cat.nome AS categoria
+            FROM veiculos v
+            JOIN cliente_veiculo cv ON cv.id_veiculo = v.id_veiculo
+            JOIN categoria_veiculo cat ON cat.id = v.id_categoria
+            WHERE cv.id_cliente = $1
+        `, [id_cliente]);
+
+        return { success: true, data: result.rows };
+    } catch (error) {
+        return { success: false, message: 'Erro ao buscar veículos', error: error.message };
+    }
+}
+
 async function getVeiculoById(id_veiculo) {
 
     try {
@@ -529,9 +550,9 @@ async function patchVeiculo(id_veiculo, dados) {
 module.exports = {
     postVeiculo,
     getVeiculos,
+    getVeiculosByCliente,
     putVeiculo,
     deleteVeiculo,
     getVeiculoById,
     patchVeiculo
-
 };

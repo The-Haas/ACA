@@ -1,8 +1,14 @@
 const service = require('../services/ordemServico.js');
 
 async function criarOrdemServico(req, res) {
-    const result = await service.criarOrdemServico(req.body);
-    res.status(result.success ? 201 : 400).json(result);
+  const dados = {
+    ...req.body,
+    id_usuario: req.user.id
+  }
+
+  const result = await service.criarOrdemServico(dados)
+
+  res.status(result.success ? 201 : 400).json(result)
 }
 
 async function aceitarOrdemServico(req, res) {

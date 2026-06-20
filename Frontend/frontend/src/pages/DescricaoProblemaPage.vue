@@ -28,6 +28,37 @@
         </q-card-section>
 
         <q-card-section>
+          <div class="veiculo-label">
+            Selecione o veículo
+          </div>
+
+          <q-select
+            v-model="veiculoSelecionado"
+            :options="veiculos"
+            option-value="id_veiculo"
+            option-label="label"
+            outlined
+            emit-value
+            map-options
+            placeholder="Selecione um veículo"
+            class="veiculo-select q-mb-md"
+            bg-color="grey-2"
+            :loading="carregandoVeiculos"
+            no-options-label="Nenhum veículo cadastrado"
+          >
+            <template #option="scope">
+              <q-item v-bind="scope.itemProps">
+                <q-item-section avatar>
+                  <q-icon name="directions_car" color="red-14" />
+                </q-item-section>
+                <q-item-section>
+                  <q-item-label>{{ scope.opt.descricao }}</q-item-label>
+                  <q-item-label caption>{{ scope.opt.placa }} · {{ scope.opt.categoria }}</q-item-label>
+                </q-item-section>
+              </q-item>
+            </template>
+          </q-select>
+
           <q-input
             v-model="descricao"
             type="textarea"
@@ -74,13 +105,40 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
+import { api } from 'src/boot/axios'
 
 const router = useRouter()
 
 const descricao = ref('')
 const mensagem = ref('')
+const veiculos = ref([])
+const veiculoSelecionado = ref(null)
+const carregandoVeiculos = ref(false)
+
+onMounted(() => {
+  carregarVeiculos()
+})
+
+async function carregarVeiculos () {
+  carregandoVeiculos.value = true
+
+  try {
+    const response = await api.get('/veiculos/meus')
+
+    if (response.data.success) {
+      veiculos.value = response.data.data.map(v => ({
+        ...v,
+        label: `${v.descricao} · ${v.placa}`
+      }))
+    }
+  } catch (err) {
+    console.error('Erro ao carregar veículos:', err)
+  } finally {
+    carregandoVeiculos.value = false
+  }
+}
 
 function cancelar () {
   router.push('/home/tipo-localizacao')
@@ -89,14 +147,20 @@ function cancelar () {
 function continuar () {
   mensagem.value = ''
 
+  if (!veiculoSelecionado.value) {
+    mensagem.value = 'Selecione um veículo para continuar.'
+    return
+  }
+
   if (!descricao.value || descricao.value.trim().length < 10) {
     mensagem.value = 'Descreva o problema com pelo menos 10 caracteres.'
     return
   }
 
+  // Salva o veículo completo para uso nas próximas telas
+  const veiculo = veiculos.value.find(v => v.id_veiculo === veiculoSelecionado.value)
+  localStorage.setItem('veiculo_selecionado', JSON.stringify(veiculo))
   localStorage.setItem('descricao_problema', descricao.value.trim())
-
-  console.log('Descrição do problema:', descricao.value.trim())
 
   router.push('/home/resumo-chamado')
 }
@@ -184,6 +248,17 @@ function continuar () {
   line-height: 1.5;
   max-width: 390px;
   margin: 8px auto 0;
+}
+
+.veiculo-label {
+  color: #1f2937;
+  font-weight: 900;
+  font-size: 14px;
+  margin-bottom: 8px;
+}
+
+.veiculo-select {
+  border-radius: 14px;
 }
 
 .descricao-input .q-field__control {

@@ -50,10 +50,6 @@ const routes = [
       {
         path: 'acompanhamento',
         component: () => import('pages/AcompanhamentoPage.vue')
-      },
-      {
-        path: 'rota',
-        component: () => import('pages/TesteRota.vue')
       }
     ]
   },

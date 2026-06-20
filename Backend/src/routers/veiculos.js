@@ -7,7 +7,9 @@ module.exports = (app) => {
     app.get('/veiculos', autenticarToken, apenasCliente, veiculoController.getVeiculos);
     app.put('/veiculos/:id', autenticarToken, apenasCliente, veiculoController.putVeiculo);
     app.delete('/veiculos/:id', autenticarToken, apenasCliente, veiculoController.deleteVeiculo);
+    app.get('/veiculos/meus', autenticarToken, apenasCliente, veiculoController.getMeusVeiculos);
     app.get('/veiculos/:id', autenticarToken, apenasCliente, veiculoController.getVeiculoById);
     app.patch('/veiculos/:id', autenticarToken, apenasCliente, veiculoController.patchVeiculo);
+    
 
 };

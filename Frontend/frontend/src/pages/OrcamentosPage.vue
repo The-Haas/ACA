@@ -155,12 +155,14 @@
             label="Cancelar"
             color="grey-8"
             v-close-popup
+            :disable="salvando"
           />
 
           <q-btn
             unelevated
             label="Confirmar"
             color="red-14"
+            :loading="salvando"
             @click="confirmarContratacao"
           />
         </q-card-actions>
@@ -173,12 +175,16 @@
 <script setup>
 import { computed, ref } from 'vue'
 import { useRouter } from 'vue-router'
+import { useQuasar } from 'quasar'
+import { api } from 'src/boot/axios'
 
 const router = useRouter()
+const $q = useQuasar()
 
 const filtro = ref('')
 const modalConfirmacao = ref(false)
 const prestadorSelecionado = ref({})
+const salvando = ref(false)
 
 const orcamentos = ref([
   {
@@ -261,12 +267,85 @@ function contratar (orcamento) {
   modalConfirmacao.value = true
 }
 
-function confirmarContratacao () {
-  localStorage.setItem('orcamento_contratado', JSON.stringify(prestadorSelecionado.value))
+// Decodifica o payload do JWT sem biblioteca externa
+function decodeJWT (token) {
+  try {
+    const payload = token.split('.')[1]
+    return JSON.parse(atob(payload))
+  } catch {
+    return null
+  }
+}
 
-  modalConfirmacao.value = false
+async function confirmarContratacao () {
+  salvando.value = true
 
-  router.push('/home/acompanhamento')
+  try {
+    // Recupera dados do fluxo
+    const servico = JSON.parse(localStorage.getItem('servico_selecionado') || '{}')
+    const tipoLocalizacao = JSON.parse(localStorage.getItem('tipo_localizacao') || '{}')
+    const localizacaoSalva = JSON.parse(localStorage.getItem('localizacao_atendimento') || '{}')
+    const descricaoProblema = localStorage.getItem('descricao_problema') || ''
+    const token = localStorage.getItem('token')
+
+    // Extrai o id do usuário direto do token JWT
+    const tokenDecodificado = decodeJWT(token)
+    const id_usuario = tokenDecodificado?.id
+
+    if (!id_usuario) {
+      $q.notify({ type: 'negative', message: 'Sessão expirada. Faça login novamente.' })
+      router.push('/login')
+      return
+    }
+
+    if (!servico.id) {
+      $q.notify({ type: 'negative', message: 'Serviço não selecionado. Volte ao início.' })
+      return
+    }
+
+    if (!tipoLocalizacao.id) {
+      $q.notify({ type: 'negative', message: 'Tipo de localização não informado.' })
+      return
+    }
+
+    if (!localizacaoSalva.latitude || !localizacaoSalva.longitude) {
+      $q.notify({ type: 'negative', message: 'Localização não informada.' })
+      return
+    }
+
+    const payload = {
+      id_usuario,
+      id_veiculo: JSON.parse(localStorage.getItem('veiculo_selecionado') || '{}').id_veiculo, // TODO: substituir pelo id do veículo selecionado quando essa etapa for adicionada ao fluxo
+      id_tipo_localizacao: tipoLocalizacao.id,
+      localizacao: `${localizacaoSalva.latitude},${localizacaoSalva.longitude}`,
+      local_entrega: null,
+      observacao_cliente: descricaoProblema || null,
+      itens: [servico.id]
+    }
+
+    const response = await api.post('/ordemServico', payload)
+
+    if (!response.data.success) {
+      $q.notify({ type: 'negative', message: response.data.message || 'Erro ao criar chamado.' })
+      return
+    }
+
+    // Salva a OS criada para uso na tela de acompanhamento
+    localStorage.setItem('os_criada', JSON.stringify(response.data.data))
+    localStorage.setItem('orcamento_contratado', JSON.stringify(prestadorSelecionado.value))
+
+    modalConfirmacao.value = false
+
+    $q.notify({ type: 'positive', message: 'Chamado criado com sucesso!' })
+
+    router.push('/home/acompanhamento')
+
+  } catch (err) {
+    console.error('Erro ao criar OS:', err)
+    $q.notify({ type: 'negative', message: 'Erro de conexão com o servidor.' })
+  } finally {
+    salvando.value = false
+  }
 }
 </script>
 

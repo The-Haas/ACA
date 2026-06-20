@@ -203,12 +203,14 @@
             label="Cancelar"
             color="grey-8"
             v-close-popup
+            :disable="finalizando"
           />
 
           <q-btn
             unelevated
             label="Finalizar atendimento"
             color="red-14"
+            :loading="finalizando"
             @click="finalizarAtendimento"
           />
         </q-card-actions>
@@ -221,10 +223,13 @@
 <script setup>
 import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
+import { useQuasar } from 'quasar'
+import { api } from 'src/boot/axios'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 
 const router = useRouter()
+const $q = useQuasar()
 
 const map = ref(null)
 const usuarioMarker = ref(null)
@@ -235,6 +240,7 @@ const modalAvaliacao = ref(false)
 const avaliacao = ref(0)
 const comentario = ref('')
 const tempoEstimado = ref(12)
+const finalizando = ref(false)
 
 const latitude = ref(-26.8468)
 const longitude = ref(-52.9913)
@@ -347,22 +353,10 @@ function carregarDadosSalvos () {
 
 function definirLocalizacaoPrestador (orcamento) {
   const deslocamentos = {
-    1: {
-      lat: 0.006,
-      lng: -0.006
-    },
-    2: {
-      lat: -0.004,
-      lng: 0.005
-    },
-    3: {
-      lat: 0.003,
-      lng: 0.004
-    },
-    4: {
-      lat: -0.002,
-      lng: -0.002
-    }
+    1: { lat: 0.006, lng: -0.006 },
+    2: { lat: -0.004, lng: 0.005 },
+    3: { lat: 0.003, lng: 0.004 },
+    4: { lat: -0.002, lng: -0.002 }
   }
 
   const deslocamento = deslocamentos[orcamento.id] || deslocamentos[1]
@@ -435,28 +429,80 @@ function centralizarMapa () {
   })
 }
 
+function decodeJWT (token) {
+  try {
+    const payload = token.split('.')[1]
+    return JSON.parse(atob(payload))
+  } catch {
+    return null
+  }
+}
+
 function abrirAvaliacao () {
   modalAvaliacao.value = true
 }
 
-function finalizarAtendimento () {
-  localStorage.setItem('avaliacao_atendimento', JSON.stringify({
-    nota: avaliacao.value,
-    comentario: comentario.value,
-    prestador: orcamentoContratado.value
-  }))
+async function finalizarAtendimento () {
+  finalizando.value = true
 
-  localStorage.setItem('status_atendimento', 'finalizado')
+  try {
+    const osCriada = JSON.parse(localStorage.getItem('os_criada') || '{}')
+    const token = localStorage.getItem('token')
+    const tokenDecodificado = decodeJWT(token)
 
-  modalAvaliacao.value = false
+    const id_os = osCriada.id
+    const id_avaliador = tokenDecodificado?.id
 
-  console.log('Atendimento finalizado:', {
-    nota: avaliacao.value,
-    comentario: comentario.value,
-    prestador: orcamentoContratado.value
-  })
+    if (!id_os) {
+      $q.notify({ type: 'negative', message: 'OS não encontrada. Tente novamente.' })
+      return
+    }
 
-  router.push('/home')
+    if (!id_avaliador) {
+      $q.notify({ type: 'negative', message: 'Sessão expirada. Faça login novamente.' })
+      router.push('/login')
+      return
+    }
+
+    const payload = {
+      avaliacao: avaliacao.value > 0
+        ? {
+            estrelas: avaliacao.value,
+            comentario: comentario.value || null,
+            id_avaliador,
+            id_avaliado: 1, // TODO: substituir pelo id real do prestador quando vier do backend
+            tipo_avaliador: 'cliente'
+          }
+        : null
+    }
+
+    const response = await api.patch(`/ordemServico/${id_os}/finalizar`, payload)
+
+    if (!response.data.success) {
+      $q.notify({ type: 'negative', message: response.data.message || 'Erro ao finalizar atendimento.' })
+      return
+    }
+
+    modalAvaliacao.value = false
+
+    $q.notify({ type: 'positive', message: 'Atendimento finalizado com sucesso!' })
+
+    // Limpa os dados do fluxo do localStorage
+    localStorage.removeItem('servico_selecionado')
+    localStorage.removeItem('tipo_localizacao')
+    localStorage.removeItem('localizacao_atendimento')
+    localStorage.removeItem('descricao_problema')
+    localStorage.removeItem('orcamento_contratado')
+    localStorage.removeItem('os_criada')
+
+    router.push('/home')
+
+  } catch (err) {
+    console.error('Erro ao finalizar atendimento:', err)
+    $q.notify({ type: 'negative', message: 'Erro de conexão com o servidor.' })
+  } finally {
+    finalizando.value = false
+  }
 }
 </script>
 
