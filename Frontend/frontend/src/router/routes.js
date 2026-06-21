@@ -6,6 +6,7 @@ const routes = [
 
   {
     path: '/login',
+    name: 'login',
     component: () => import('pages/LoginPage.vue')
   },
 
@@ -21,15 +22,23 @@ const routes = [
 
   {
     path: '/prestador',
-    component: () => import('pages/PainelPrestadorPage.vue')
+    name: 'prestador',
+    component: () => import('pages/PainelPrestadorPage.vue'),
+    meta: {
+      requiresAuth: true
+    }
   },
 
   {
     path: '/home',
     component: () => import('layouts/MainLayout.vue'),
+    meta: {
+      requiresAuth: true
+    },
     children: [
       {
         path: '',
+        name: 'home',
         component: () => import('pages/IndexPage.vue')
       },
       {
