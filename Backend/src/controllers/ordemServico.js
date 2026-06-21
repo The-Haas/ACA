@@ -11,6 +11,13 @@ async function criarOrdemServico(req, res) {
   res.status(result.success ? 201 : 400).json(result)
 }
 
+async function listarOrdensAbertasPrestador(req, res) {
+    const id_prestador = req.user.id;
+
+    const result = await service.listarOrdensAbertasPrestador(id_prestador);
+    res.status(result.success ? 200 : 400).json(result);
+}
+
 async function aceitarOrdemServico(req, res) {
     const { id } = req.params;
     const { id_prestador } = req.body;
@@ -29,6 +36,7 @@ async function finalizarOrdemServico(req, res) {
 
 module.exports = {
     criarOrdemServico,
+    listarOrdensAbertasPrestador,
     aceitarOrdemServico,
     finalizarOrdemServico
 };

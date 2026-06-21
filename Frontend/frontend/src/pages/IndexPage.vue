@@ -1,7 +1,6 @@
 <template>
   <q-page class="home-page">
 
-    <!-- Título da tela -->
     <section class="home-hero">
       <div class="service-badge">
         Escolha o serviço que precisa
@@ -17,8 +16,14 @@
       </p>
     </section>
 
+    <!-- Carregando -->
+    <div v-if="carregando" class="carregando-container">
+      <q-spinner-dots color="red-14" size="50px" />
+      <div class="carregando-texto">Carregando serviços...</div>
+    </div>
+
     <!-- Cards de serviços -->
-    <section class="services-grid">
+    <section v-else class="services-grid">
       <q-card
         v-for="servico in servicos"
         :key="servico.id"
@@ -28,7 +33,7 @@
       >
         <q-card-section class="service-content">
           <div class="service-icon">
-            <q-icon :name="servico.icon" size="42px" color="red-14" />
+            <q-icon :name="iconeServico(servico.nome)" size="42px" color="red-14" />
           </div>
 
           <div class="service-name">
@@ -36,17 +41,15 @@
           </div>
 
           <div class="service-text">
-            {{ servico.descricao }}
+            {{ servico.descricao || descricaoServico(servico.nome) }}
           </div>
         </q-card-section>
       </q-card>
     </section>
 
-    <!-- Informações extras -->
     <section class="help-section">
       <q-card class="help-card" flat>
         <q-icon name="schedule" size="34px" color="red-14" />
-
         <div>
           <div class="help-title">Atendimento 24 horas</div>
           <div class="help-text">Solicite ajuda quando precisar.</div>
@@ -55,7 +58,6 @@
 
       <q-card class="help-card" flat>
         <q-icon name="verified_user" size="34px" color="red-14" />
-
         <div>
           <div class="help-title">Serviço mais seguro</div>
           <div class="help-text">Profissionais cadastrados na plataforma.</div>
@@ -64,7 +66,6 @@
 
       <q-card class="help-card" flat>
         <q-icon name="place" size="34px" color="red-14" />
-
         <div>
           <div class="help-title">Localização facilitada</div>
           <div class="help-text">Informe onde está e receba atendimento.</div>
@@ -72,12 +73,11 @@
       </q-card>
     </section>
 
-    <!-- Modal de confirmação do serviço -->
     <q-dialog v-model="modalServico">
       <q-card class="dialog-card">
         <q-card-section class="text-center">
           <div class="dialog-icon">
-            <q-icon :name="servicoSelecionado.icon" size="46px" color="red-14" />
+            <q-icon :name="iconeServico(servicoSelecionado.nome)" size="46px" color="red-14" />
           </div>
 
           <div class="text-h5 text-bold q-mt-md text-grey-9">
@@ -85,7 +85,7 @@
           </div>
 
           <div class="text-grey-7 q-mt-sm">
-            {{ servicoSelecionado.descricao }}
+            {{ servicoSelecionado.descricao || descricaoServico(servicoSelecionado.nome) }}
           </div>
         </q-card-section>
 
@@ -118,58 +118,81 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
+import { api } from 'src/boot/axios'
 
 const router = useRouter()
 
 const modalServico = ref(false)
+const carregando = ref(false)
+const servicos = ref([])
 
 const servicoSelecionado = ref({
   id: null,
   nome: '',
-  descricao: '',
-  icon: ''
+  descricao: ''
 })
 
-const servicos = [
-  {
-    id: 1,
-    nome: 'Guincho',
-    descricao: 'Transporte ou remoção do veículo.',
-    icon: 'local_shipping'
-  },
-  {
-    id: 2,
-    nome: 'Troca de Pneu',
-    descricao: 'Ajuda rápida em caso de pneu furado.',
-    icon: 'tire_repair'
-  },
-  {
-    id: 3,
-    nome: 'Chaveiro',
-    descricao: 'Problemas com chave ou abertura do veículo.',
-    icon: 'vpn_key'
-  },
-  {
-    id: 4,
-    nome: 'Pane Seca',
-    descricao: 'Auxílio em caso de falta de combustível.',
-    icon: 'local_gas_station'
-  },
-  {
-    id: 5,
-    nome: 'Mecânico',
-    descricao: 'Suporte para falhas e problemas mecânicos.',
-    icon: 'build'
-  },
-  {
-    id: 6,
-    nome: 'Recarga de Bateria',
-    descricao: 'Ajuda para bateria fraca ou descarregada.',
-    icon: 'battery_charging_full'
-  }
+// Mapa de ícones por nome do serviço (busca parcial, case-insensitive)
+const mapaIcones = [
+  { palavras: ['guincho', 'reboque', 'remoção'], icone: 'local_shipping' },
+  { palavras: ['pneu', 'borracha', 'troca'], icone: 'tire_repair' },
+  { palavras: ['chaveiro', 'chave', 'abertura'], icone: 'vpn_key' },
+  { palavras: ['combustível', 'pane seca', 'gasolina', 'abastec'], icone: 'local_gas_station' },
+  { palavras: ['mecâni', 'mecani', 'motor', 'falha'], icone: 'build' },
+  { palavras: ['bateria', 'recarga', 'elétri'], icone: 'battery_charging_full' },
+  { palavras: ['vidro', 'parabrisa'], icone: 'window' },
+  { palavras: ['teste'], icone: 'settings' }
 ]
+
+function iconeServico (nome) {
+  if (!nome) return 'car_repair'
+  const nomeLower = nome.toLowerCase()
+  for (const item of mapaIcones) {
+    if (item.palavras.some(p => nomeLower.includes(p))) {
+      return item.icone
+    }
+  }
+  return 'car_repair'
+}
+
+function descricaoServico (nome) {
+  if (!nome) return ''
+  const nomeLower = nome.toLowerCase()
+  if (nomeLower.includes('guincho')) return 'Transporte ou remoção do veículo.'
+  if (nomeLower.includes('pneu')) return 'Ajuda rápida em caso de pneu furado.'
+  if (nomeLower.includes('chaveiro')) return 'Problemas com chave ou abertura do veículo.'
+  if (nomeLower.includes('pane') || nomeLower.includes('combustível')) return 'Auxílio em caso de falta de combustível.'
+  if (nomeLower.includes('mecâni') || nomeLower.includes('mecani')) return 'Suporte para falhas e problemas mecânicos.'
+  if (nomeLower.includes('bateria')) return 'Ajuda para bateria fraca ou descarregada.'
+  if (nomeLower.includes('elétri')) return 'Suporte para problemas elétricos.'
+  if (nomeLower.includes('borracha')) return 'Serviços de borracharia.'
+  return 'Serviço especializado para o seu veículo.'
+}
+
+onMounted(() => {
+  carregarServicos()
+})
+
+async function carregarServicos () {
+  carregando.value = true
+
+  try {
+    const response = await api.get('/categoriaservico')
+
+    // o controller retorna o array direto
+    if (Array.isArray(response.data)) {
+      servicos.value = response.data
+    } else if (response.data.categorias) {
+      servicos.value = response.data.categorias
+    }
+  } catch (err) {
+    console.error('Erro ao carregar serviços:', err)
+  } finally {
+    carregando.value = false
+  }
+}
 
 function selecionarServico (servico) {
   servicoSelecionado.value = servico
@@ -178,9 +201,7 @@ function selecionarServico (servico) {
 
 function continuarServico () {
   localStorage.setItem('servico_selecionado', JSON.stringify(servicoSelecionado.value))
-
   modalServico.value = false
-
   router.push('/home/localizacao')
 }
 </script>
@@ -226,6 +247,17 @@ function continuarServico () {
   color: #6b7280;
   font-size: 17px;
   line-height: 1.6;
+}
+
+.carregando-container {
+  text-align: center;
+  padding: 60px 20px;
+}
+
+.carregando-texto {
+  color: #6b7280;
+  margin-top: 16px;
+  font-size: 15px;
 }
 
 .services-grid {

@@ -21,56 +21,32 @@ async function postPrestador(dados) {
         // REGEX
         const regexEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
         const regexTelefone = /^\(?\d{2}\)?\s?\d{4,5}-?\d{4}$/;
-        const regexSenha = /^(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*(),.?":{}|<>_\-\\[\]\/+=~`]).{8,}$/;
+        const regexSenha = /^(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*(),.?":{}|<>_\-\\\[\]\/+=~`]).{8,}$/;
 
-        // valida CNPJ REAL
         if (!cnpj || !validarCNPJ(cnpj)) {
-            return {
-                success: false,
-                message: 'CNPJ inválido.'
-            };
+            return { success: false, message: 'CNPJ inválido.' };
         }
 
-        // valida razão social
         if (!razao_social || razao_social.length < 3) {
-            return {
-                success: false,
-                message: 'Razão social inválida.'
-            };
+            return { success: false, message: 'Razão social inválida.' };
         }
 
-        // valida email
         if (!email || !regexEmail.test(email)) {
-            return {
-                success: false,
-                message: 'Email inválido.'
-            };
+            return { success: false, message: 'Email inválido.' };
         }
 
-        // valida telefone
         if (!telefone || !regexTelefone.test(telefone)) {
-            return {
-                success: false,
-                message: 'Telefone inválido.'
-            };
+            return { success: false, message: 'Telefone inválido.' };
         }
 
-        // valida senha
         if (!senha || !regexSenha.test(senha)) {
-            return {
-                success: false,
-                message: 'Senha fraca. Deve conter 8 caracteres, 1 maiúscula, 1 número e 1 especial.'
-            };
+            return { success: false, message: 'Senha fraca. Deve conter 8 caracteres, 1 maiúscula, 1 número e 1 especial.' };
         }
 
         if (!Array.isArray(categorias_servico) || categorias_servico.length === 0) {
-            return {
-                success: false,
-                message: 'Informe ao menos uma categoria de serviço.'
-            };
+            return { success: false, message: 'Informe ao menos uma categoria de serviço.' };
         }
 
-        //  verifica duplicidade
         const check = await db.query(
             `SELECT email, cnpj, telefone
              FROM prestadores
@@ -79,44 +55,24 @@ async function postPrestador(dados) {
         );
 
         if (check.rows.length > 0) {
-
             const prestador = check.rows[0];
-
-            if (prestador.email === email) {
-                return { success: false, message: 'Email já está em uso.' };
-            }
-
-            if (prestador.cnpj === cnpjLimpo) {
-                return { success: false, message: 'CNPJ já está cadastrado.' };
-            }
-
-            if (prestador.telefone === telefone) {
-                return { success: false, message: 'Telefone já está cadastrado.' };
-            }
+            if (prestador.email === email) return { success: false, message: 'Email já está em uso.' };
+            if (prestador.cnpj === cnpjLimpo) return { success: false, message: 'CNPJ já está cadastrado.' };
+            if (prestador.telefone === telefone) return { success: false, message: 'Telefone já está cadastrado.' };
         }
 
-        // hash senha
         const hashedPassword = await bcrypt.hash(senha, 10);
 
-        //  insert prestador
         const result = await db.query(
             `INSERT INTO prestadores
             (cnpj, razao_social, nome_fantasia, email, senha, telefone)
             VALUES ($1, $2, $3, $4, $5, $6)
             RETURNING id`,
-            [
-                cnpjLimpo,
-                razao_social,
-                nome_fantasia,
-                email.toLowerCase(),
-                hashedPassword,
-                telefone
-            ]
+            [cnpjLimpo, razao_social, nome_fantasia, email.toLowerCase(), hashedPassword, telefone]
         );
 
         const idPrestador = result.rows[0].id;
 
-        // insert serviços
         for (const idCategoria of categorias_servico) {
             await db.query(
                 `INSERT INTO prestador_servicos (id_prestador, id_categoria_servico)
@@ -132,31 +88,21 @@ async function postPrestador(dados) {
         };
 
     } catch (error) {
-
         console.error(error);
-
-        return {
-            success: false,
-            message: 'Erro ao cadastrar prestador.',
-            error: error.message
-        };
+        return { success: false, message: 'Erro ao cadastrar prestador.', error: error.message };
     }
 }
 
-
-//  FUNÇÃO DE VALIDAÇÃO REAL DE CNPJ
 function validarCNPJ(cnpj) {
 
     cnpj = cnpj.replace(/\D/g, '');
 
     if (cnpj.length !== 14) return false;
-
     if (/^(\d)\1+$/.test(cnpj)) return false;
 
     let tamanho = cnpj.length - 2;
     let numeros = cnpj.substring(0, tamanho);
     let digitos = cnpj.substring(tamanho);
-
     let soma = 0;
     let pos = tamanho - 7;
 
@@ -166,12 +112,10 @@ function validarCNPJ(cnpj) {
     }
 
     let resultado = soma % 11 < 2 ? 0 : 11 - (soma % 11);
-
     if (resultado != digitos.charAt(0)) return false;
 
     tamanho = tamanho + 1;
     numeros = cnpj.substring(0, tamanho);
-
     soma = 0;
     pos = tamanho - 7;
 
@@ -181,7 +125,6 @@ function validarCNPJ(cnpj) {
     }
 
     resultado = soma % 11 < 2 ? 0 : 11 - (soma % 11);
-
     if (resultado != digitos.charAt(1)) return false;
 
     return true;
@@ -189,110 +132,97 @@ function validarCNPJ(cnpj) {
 
 async function getPrestador() {
     try {
-
         const result = await db.query(`
-            SELECT 
-    p.id,
-    p.cnpj,
-    p.razao_social,
-    p.nome_fantasia,
-    p.email,
-    p.telefone,
+            SELECT
+                p.id,
+                p.cnpj,
+                p.razao_social,
+                p.nome_fantasia,
+                p.email,
+                p.telefone,
+                COALESCE(
+                    ARRAY_AGG(DISTINCT cs.nome)
+                    FILTER (WHERE cs.id IS NOT NULL), '{}'
+                ) AS categorias_servico
+            FROM prestadores p
+            LEFT JOIN prestador_servicos ps ON ps.id_prestador = p.id
+            LEFT JOIN categoria_servicos cs ON cs.id = ps.id_categoria_servico
+            GROUP BY p.id
+            ORDER BY p.id ASC
+        `);
 
-    COALESCE(
-        ARRAY_AGG(DISTINCT cs.nome) 
-        FILTER (WHERE cs.id IS NOT NULL), '{}'
-    ) AS categorias_servico
-
-FROM prestadores p
-
-LEFT JOIN prestador_servicos ps 
-    ON ps.id_prestador = p.id
-
-LEFT JOIN categoria_servicos cs
-    ON cs.id = ps.id_categoria_servico
-
-GROUP BY p.id
-ORDER BY p.id ASC`);
-
-        return {
-            success: true,
-            prestadores: result.rows
-        };
+        return { success: true, prestadores: result.rows };
 
     } catch (error) {
-
         console.error('Erro ao buscar prestadores:', error);
+        return { success: false, message: 'Erro ao buscar prestadores.', error: error.message };
+    }
+}
 
-        return {
-            success: false,
-            message: 'Erro ao buscar prestadores.',
-            error: error.message
-        };
+async function getPrestadoresPorCategoria(id_categoria_servico) {
+    try {
+        const result = await db.query(`
+            SELECT
+                p.id,
+                p.nome_fantasia,
+                p.razao_social,
+                p.telefone,
+                COALESCE(
+                    ARRAY_AGG(DISTINCT cs.nome)
+                    FILTER (WHERE cs.id IS NOT NULL), '{}'
+                ) AS categorias_servico
+            FROM prestadores p
+            JOIN prestador_servicos ps ON ps.id_prestador = p.id
+            JOIN categoria_servicos cs ON cs.id = ps.id_categoria_servico
+            WHERE ps.id_categoria_servico = $1
+            GROUP BY p.id
+            ORDER BY p.id ASC
+        `, [id_categoria_servico]);
+
+        return { success: true, data: result.rows };
+
+    } catch (error) {
+        console.error('Erro ao buscar prestadores por categoria:', error);
+        return { success: false, message: 'Erro ao buscar prestadores.', error: error.message };
     }
 }
 
 async function getPrestadorById(id) {
     try {
-
         const result = await db.query(`
-            SELECT 
-    p.id,
-    p.cnpj,
-    p.razao_social,
-    p.nome_fantasia,
-    p.email,
-    p.telefone,
-
-    COALESCE(
-        ARRAY_AGG(DISTINCT cs.nome) 
-        FILTER (WHERE cs.id IS NOT NULL), '{}'
-    ) AS categorias_servico
-
-FROM prestadores p
-
-LEFT JOIN prestador_servicos ps 
-    ON ps.id_prestador = p.id
-
-LEFT JOIN categoria_servicos cs
-    ON cs.id = ps.id_categoria_servico
-
-WHERE p.id = $1
-GROUP BY p.id`, [id]);
+            SELECT
+                p.id,
+                p.cnpj,
+                p.razao_social,
+                p.nome_fantasia,
+                p.email,
+                p.telefone,
+                COALESCE(
+                    ARRAY_AGG(DISTINCT cs.nome)
+                    FILTER (WHERE cs.id IS NOT NULL), '{}'
+                ) AS categorias_servico
+            FROM prestadores p
+            LEFT JOIN prestador_servicos ps ON ps.id_prestador = p.id
+            LEFT JOIN categoria_servicos cs ON cs.id = ps.id_categoria_servico
+            WHERE p.id = $1
+            GROUP BY p.id
+        `, [id]);
 
         if (result.rows.length === 0) {
-            return {
-                success: false,
-                message: 'Prestador não encontrado.'
-            };
+            return { success: false, message: 'Prestador não encontrado.' };
         }
 
-        return {
-            success: true,
-            prestador: result.rows[0]
-        };
+        return { success: true, prestador: result.rows[0] };
 
     } catch (error) {
-
         console.error('Erro ao buscar prestador:', error);
-
-        return {
-            success: false,
-            message: 'Erro ao buscar prestador.',
-            error: error.message
-        };
+        return { success: false, message: 'Erro ao buscar prestador.', error: error.message };
     }
 }
 
 async function putPrestador(id, dados) {
 
-    let {
-        cnpj,
-        razao_social,
-        nome_fantasia,
-        email,
-        telefone
-    } = dados;
+    let { cnpj, razao_social, nome_fantasia, email, telefone } = dados;
 
     try {
 
@@ -302,179 +232,56 @@ async function putPrestador(id, dados) {
         const cnpjLimpo = cnpj.replace(/\D/g, '');
         const emailNormalizado = email.toLowerCase();
 
-        // valida razão social
-        if (!razao_social || razao_social.length < 3) {
-            return {
-                success: false,
-                message: 'Razão social inválida.'
-            };
-        }
+        if (!razao_social || razao_social.length < 3) return { success: false, message: 'Razão social inválida.' };
+        if (!email || !regexEmail.test(email)) return { success: false, message: 'Email inválido.' };
+        if (!telefone || !regexTelefone.test(telefone)) return { success: false, message: 'Telefone inválido.' };
+        if (!cnpj || !validarCNPJ(cnpj)) return { success: false, message: 'CNPJ inválido.' };
 
-        // valida email
-        if (!email || !regexEmail.test(email)) {
-            return {
-                success: false,
-                message: 'Email inválido.'
-            };
-        }
+        const prestadorCheck = await db.query('SELECT id FROM prestadores WHERE id = $1', [id]);
+        if (prestadorCheck.rows.length === 0) return { success: false, message: 'Prestador não encontrado.' };
 
-        // valida telefone
-        if (!telefone || !regexTelefone.test(telefone)) {
-            return {
-                success: false,
-                message: 'Telefone inválido.'
-            };
-        }
-
-        // valida CNPJ
-        if (!cnpj || !validarCNPJ(cnpj)) {
-            return {
-                success: false,
-                message: 'CNPJ inválido.'
-            };
-        }
-
-        // verifica se existe
-        const prestadorCheck = await db.query(
-            'SELECT id FROM prestadores WHERE id = $1',
-            [id]
-        );
-
-        if (prestadorCheck.rows.length === 0) {
-            return {
-                success: false,
-                message: 'Prestador não encontrado.'
-            };
-        }
-
-        // 🔎 DUPLICIDADE (igual ao cliente)
         const duplicadoCheck = await db.query(
-            `SELECT id, email, cnpj, telefone
-             FROM prestadores
-             WHERE (email = $1 OR cnpj = $2 OR telefone = $3)
-             AND id != $4`,
+            `SELECT id, email, cnpj, telefone FROM prestadores
+             WHERE (email = $1 OR cnpj = $2 OR telefone = $3) AND id != $4`,
             [emailNormalizado, cnpjLimpo, telefone, id]
         );
 
         if (duplicadoCheck.rows.length > 0) {
-
-            const prestador = duplicadoCheck.rows[0];
-
-            if (prestador.email === emailNormalizado) {
-                return {
-                    success: false,
-                    message: "Email já está em uso."
-                };
-            }
-
-            if (prestador.cnpj === cnpjLimpo) {
-                return {
-                    success: false,
-                    message: "CNPJ já cadastrado."
-                };
-            }
-
-            if (prestador.telefone === telefone) {
-                return {
-                    success: false,
-                    message: "Telefone já cadastrado."
-                };
-            }
+            const p = duplicadoCheck.rows[0];
+            if (p.email === emailNormalizado) return { success: false, message: 'Email já está em uso.' };
+            if (p.cnpj === cnpjLimpo) return { success: false, message: 'CNPJ já cadastrado.' };
+            if (p.telefone === telefone) return { success: false, message: 'Telefone já cadastrado.' };
         }
 
-        // ✏️ UPDATE
         const result = await db.query(
             `UPDATE prestadores
-             SET cnpj = $1,
-                 razao_social = $2,
-                 nome_fantasia = $3,
-                 email = $4,
-                 telefone = $5
+             SET cnpj = $1, razao_social = $2, nome_fantasia = $3, email = $4, telefone = $5
              WHERE id = $6
              RETURNING id, cnpj, razao_social, nome_fantasia, email, telefone`,
-            [
-                cnpjLimpo,
-                razao_social,
-                nome_fantasia,
-                emailNormalizado,
-                telefone,
-                id
-            ]
+            [cnpjLimpo, razao_social, nome_fantasia, emailNormalizado, telefone, id]
         );
 
-        return {
-            success: true,
-            message: 'Prestador atualizado com sucesso.',
-            prestador: result.rows[0]
-        };
+        return { success: true, message: 'Prestador atualizado com sucesso.', prestador: result.rows[0] };
 
     } catch (error) {
-
         console.error(error);
-
-        return {
-            success: false,
-            message: 'Erro ao atualizar prestador.',
-            error: error.message
-        };
+        return { success: false, message: 'Erro ao atualizar prestador.', error: error.message };
     }
 }
 
 async function deletePrestador(id) {
-
     try {
+        const check = await db.query('SELECT id FROM prestadores WHERE id = $1', [id]);
+        if (check.rows.length === 0) return { success: false, message: 'Prestador não encontrado.' };
 
-        // verifica se existe
-        const check = await db.query(
-            'SELECT id FROM prestadores WHERE id = $1',
-            [id]
-        );
+        await db.query('DELETE FROM prestador_servicos WHERE id_prestador = $1', [id]);
+        await db.query('DELETE FROM prestadores WHERE id = $1', [id]);
 
-        if (check.rows.length === 0) {
-            return {
-                success: false,
-                message: 'Prestador não encontrado.'
-            };
-        }
-
-        //  exemplo de validação (caso tenha serviços vinculados futuramente)
-        // const vinculo = await db.query(
-        //     'SELECT id FROM servicos WHERE id_prestador = $1 LIMIT 1',
-        //     [id]
-        // );
-
-        // if (vinculo.rows.length > 0) {
-        //     return {
-        //         success: false,
-        //         message: 'Não é possível excluir. Prestador possui serviços vinculados.'
-        //     };
-        // }
-
-        await db.query(
-            'DELETE FROM prestador_servicos WHERE id_prestador = $1',
-            [id]
-        );
-
-        // deleta prestador
-        await db.query(
-            'DELETE FROM prestadores WHERE id = $1',
-            [id]
-        );
-
-        return {
-            success: true,
-            message: 'Prestador deletado com sucesso.'
-        };
+        return { success: true, message: 'Prestador deletado com sucesso.' };
 
     } catch (error) {
-
         console.error(error);
-
-        return {
-            success: false,
-            message: 'Erro ao deletar prestador.',
-            error: error.message
-        };
+        return { success: false, message: 'Erro ao deletar prestador.', error: error.message };
     }
 }
 
@@ -486,28 +293,19 @@ async function patchPrestador(id, dados) {
 
         await client.query('BEGIN');
 
-        // busca prestador atual
-        const atual = await client.query(
-            `SELECT * FROM prestadores WHERE id = $1`,
-            [id]
-        );
+        const atual = await client.query(`SELECT * FROM prestadores WHERE id = $1`, [id]);
 
         if (!atual.rows || atual.rows.length === 0) {
             await client.query('ROLLBACK');
-            return {
-                success: false,
-                message: "Prestador não encontrado."
-            };
+            return { success: false, message: 'Prestador não encontrado.' };
         }
 
         const prestadorAtual = atual.rows[0];
 
-        // REGEX
         const regexEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
         const regexTelefone = /^\(?\d{2}\)?\s?\d{4,5}-?\d{4}$/;
-        const regexSenha = /^(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*(),.?":{}|<>_\-\\[\]\/+=~`]).{8,}$/;
+        const regexSenha = /^(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*(),.?":{}|<>_\-\\\[\]\/+=~`]).{8,}$/;
 
-        // merge dos dados
         const cnpj = dados.cnpj ? dados.cnpj.replace(/\D/g, '') : prestadorAtual.cnpj;
         const razao_social = dados.razao_social ?? prestadorAtual.razao_social;
         const nome_fantasia = dados.nome_fantasia ?? prestadorAtual.nome_fantasia;
@@ -515,8 +313,6 @@ async function patchPrestador(id, dados) {
         const telefone = dados.telefone ?? prestadorAtual.telefone;
 
         let senhaHash = prestadorAtual.senha;
-
-        // validações (só se vier no body)
 
         if (dados.cnpj !== undefined && !validarCNPJ(dados.cnpj)) {
             await client.query('ROLLBACK');
@@ -539,89 +335,42 @@ async function patchPrestador(id, dados) {
         }
 
         if (dados.senha !== undefined) {
-
             if (!regexSenha.test(dados.senha)) {
                 await client.query('ROLLBACK');
-                return {
-                    success: false,
-                    message: 'Senha fraca.'
-                };
+                return { success: false, message: 'Senha fraca.' };
             }
-
             senhaHash = await bcrypt.hash(dados.senha, 10);
         }
 
-        // duplicidade
-        if (
-            dados.email !== undefined ||
-            dados.cnpj !== undefined ||
-            dados.telefone !== undefined
-        ) {
-
+        if (dados.email !== undefined || dados.cnpj !== undefined || dados.telefone !== undefined) {
             const duplicadoCheck = await client.query(
-                `SELECT id, email, cnpj, telefone
-                 FROM prestadores
-                 WHERE (email = $1 OR cnpj = $2 OR telefone = $3)
-                 AND id != $4`,
+                `SELECT id, email, cnpj, telefone FROM prestadores
+                 WHERE (email = $1 OR cnpj = $2 OR telefone = $3) AND id != $4`,
                 [email, cnpj, telefone, id]
             );
 
             if (duplicadoCheck.rows.length > 0) {
-
                 const p = duplicadoCheck.rows[0];
-
-                if (p.email === email) {
-                    await client.query('ROLLBACK');
-                    return { success: false, message: "Email já está em uso." };
-                }
-
-                if (p.cnpj === cnpj) {
-                    await client.query('ROLLBACK');
-                    return { success: false, message: "CNPJ já cadastrado." };
-                }
-
-                if (p.telefone === telefone) {
-                    await client.query('ROLLBACK');
-                    return { success: false, message: "Telefone já cadastrado." };
-                }
+                await client.query('ROLLBACK');
+                if (p.email === email) return { success: false, message: 'Email já está em uso.' };
+                if (p.cnpj === cnpj) return { success: false, message: 'CNPJ já cadastrado.' };
+                if (p.telefone === telefone) return { success: false, message: 'Telefone já cadastrado.' };
             }
         }
 
-        // UPDATE
         const result = await client.query(
             `UPDATE prestadores
-             SET cnpj = $1,
-                 razao_social = $2,
-                 nome_fantasia = $3,
-                 email = $4,
-                 senha = $5,
-                 telefone = $6
+             SET cnpj = $1, razao_social = $2, nome_fantasia = $3, email = $4, senha = $5, telefone = $6
              WHERE id = $7
              RETURNING id, cnpj, razao_social, nome_fantasia, email, telefone`,
-            [
-                cnpj,
-                razao_social,
-                nome_fantasia,
-                email,
-                senhaHash,
-                telefone,
-                id
-            ]
+            [cnpj, razao_social, nome_fantasia, email, senhaHash, telefone, id]
         );
 
-
-        // categorias serviço
         if (dados.categorias_servico !== undefined) {
-
-            await client.query(
-                `DELETE FROM prestador_servicos WHERE id_prestador = $1`,
-                [id]
-            );
-
+            await client.query(`DELETE FROM prestador_servicos WHERE id_prestador = $1`, [id]);
             for (const cat of dados.categorias_servico) {
                 await client.query(
-                    `INSERT INTO prestador_servicos (id_prestador, id_categoria_servico)
-                     VALUES ($1, $2)`,
+                    `INSERT INTO prestador_servicos (id_prestador, id_categoria_servico) VALUES ($1, $2)`,
                     [id, cat]
                 );
             }
@@ -629,50 +378,26 @@ async function patchPrestador(id, dados) {
 
         await client.query('COMMIT');
 
-        // retorna completo (igual GET BY ID)
         const completo = await db.query(`
-            SELECT 
-                p.id,
-                p.cnpj,
-                p.razao_social,
-                p.nome_fantasia,
-                p.email,
-                p.telefone,
-
-
-                COALESCE(
-                    ARRAY_AGG(DISTINCT cs.nome) 
-                    FILTER (WHERE cs.id IS NOT NULL), '{}'
-                ) AS categorias_servico
-
+            SELECT
+                p.id, p.cnpj, p.razao_social, p.nome_fantasia, p.email, p.telefone,
+                COALESCE(ARRAY_AGG(DISTINCT cs.nome) FILTER (WHERE cs.id IS NOT NULL), '{}') AS categorias_servico
             FROM prestadores p
-
-            LEFT JOIN prestador_servicos ps 
-                ON ps.id_prestador = p.id
-
-            LEFT JOIN categoria_servicos cs
-                ON cs.id = ps.id_categoria_servico
-
+            LEFT JOIN prestador_servicos ps ON ps.id_prestador = p.id
+            LEFT JOIN categoria_servicos cs ON cs.id = ps.id_categoria_servico
             WHERE p.id = $1
             GROUP BY p.id
         `, [id]);
 
         return {
             success: true,
-            message: "Prestador atualizado parcialmente com sucesso.",
+            message: 'Prestador atualizado parcialmente com sucesso.',
             prestador: completo.rows[0]
         };
 
     } catch (error) {
-
         await client.query('ROLLBACK');
-
-        return {
-            success: false,
-            message: "Erro ao atualizar prestador.",
-            error: error.message
-        };
-
+        return { success: false, message: 'Erro ao atualizar prestador.', error: error.message };
     } finally {
         client.release();
     }
@@ -681,6 +406,7 @@ async function patchPrestador(id, dados) {
 module.exports = {
     postPrestador,
     getPrestador,
+    getPrestadoresPorCategoria,
     getPrestadorById,
     putPrestador,
     deletePrestador,

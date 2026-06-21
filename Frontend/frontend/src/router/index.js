@@ -12,6 +12,15 @@ export default defineRouter(function (/* { store, ssrContext } */) {
     history: createWebHistory(process.env.VUE_ROUTER_BASE),
   })
 
+  function decodeJWT (token) {
+    try {
+      const payload = token.split('.')[1]
+      return JSON.parse(atob(payload))
+    } catch {
+      return null
+    }
+  }
+
   Router.beforeEach((to) => {
     const token = localStorage.getItem('token')
 
@@ -21,7 +30,24 @@ export default defineRouter(function (/* { store, ssrContext } */) {
       return '/login'
     }
 
-    if (to.path === '/login' && token) {
+    if (!token) {
+      return
+    }
+
+    const tipo = decodeJWT(token)?.tipo
+    const telaDoTipo = tipo === 'prestador' ? '/prestador' : '/home'
+
+    // já logado tentando ver a tela de login -> manda para a tela certa
+    if (to.path === '/login') {
+      return telaDoTipo
+    }
+
+    // prestador não acessa a área do cliente, e vice-versa
+    if (tipo === 'prestador' && to.path.startsWith('/home')) {
+      return '/prestador'
+    }
+
+    if (tipo === 'cliente' && to.path.startsWith('/prestador')) {
       return '/home'
     }
   })

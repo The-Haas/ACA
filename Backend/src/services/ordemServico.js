@@ -160,6 +160,82 @@ return {
     }
 }
 
+async function listarOrdensAbertasPrestador(id_prestador) {
+    const client = await db.pool.connect();
+
+    try {
+        // valida prestador existe
+        const prestador = await client.query(
+            'SELECT id FROM prestadores WHERE id = $1',
+            [id_prestador]
+        );
+
+        if (prestador.rowCount === 0) {
+            return { success: false, message: 'Prestador não encontrado' };
+        }
+
+        // 🟢 busca OS com id_status = 1 (aberta, sem prestador) cujos itens
+        // sejam TODOS atendidos pelas categorias de serviço do prestador
+        const ordens = await client.query(
+            `SELECT
+                os.id,
+                os.descricao,
+                os.valor,
+                os.localizacao,
+                os.local_entrega,
+                os.observacao_cliente,
+
+                c.nome AS cliente,
+                c.telefone AS cliente_telefone,
+
+                v.descricao AS veiculo,
+
+                tl.nome AS tipo_localizacao,
+                st.nome AS status,
+
+                COALESCE(
+                    json_agg(cs.nome) FILTER (WHERE cs.nome IS NOT NULL),
+                    '[]'
+                ) AS servicos
+
+             FROM ordem_servico os
+             JOIN clientes c ON c.id = os.id_usuario
+             JOIN veiculos v ON v.id_veiculo = os.id_veiculo
+             JOIN tipos_localizacao tl ON tl.id = os.id_tipo_localizacao
+             JOIN status_servico st ON st.id = os.id_status
+             LEFT JOIN ordem_servico_itens oi ON oi.id_ordem_servico = os.id
+             LEFT JOIN categoria_servicos cs ON cs.id = oi.id_categoria_servico
+
+             WHERE os.id_status = 1
+               AND NOT EXISTS (
+                    SELECT 1
+                    FROM ordem_servico_itens oi2
+                    WHERE oi2.id_ordem_servico = os.id
+                      AND NOT EXISTS (
+                            SELECT 1
+                            FROM prestador_servicos ps
+                            WHERE ps.id_prestador = $1
+                              AND ps.id_categoria_servico = oi2.id_categoria_servico
+                      )
+               )
+
+             GROUP BY os.id, c.nome, c.telefone, v.descricao, tl.nome, st.nome
+             ORDER BY os.id DESC`,
+            [id_prestador]
+        );
+
+        return {
+            success: true,
+            data: ordens.rows
+        };
+
+    } catch (err) {
+        return { success: false, error: err.message };
+    } finally {
+        client.release();
+    }
+}
+
 async function aceitarOrdemServico(id_os, id_prestador) {
     const client = await db.pool.connect();
 
@@ -310,6 +386,7 @@ async function finalizarOrdemServico(id_os, avaliacao) {
 
 module.exports = {
     criarOrdemServico,
+    listarOrdensAbertasPrestador,
     aceitarOrdemServico,
     finalizarOrdemServico
 };

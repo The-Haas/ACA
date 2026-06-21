@@ -4,6 +4,7 @@ const { autenticarToken, apenasPrestador } = require('../middlewares/authMiddlew
 module.exports = (app) => {
 
     app.post('/prestadores', prestadoresController.postPrestador);
+    app.get('/prestadores/categoria/:id_categoria', autenticarToken, prestadoresController.getPrestadoresPorCategoria);
     app.get('/prestadores', autenticarToken, apenasPrestador, prestadoresController.getPrestador);
     app.get('/prestadores/:id', autenticarToken, apenasPrestador, prestadoresController.getPrestadorById);
     app.put('/prestadores/:id', autenticarToken, apenasPrestador, prestadoresController.putPrestador);

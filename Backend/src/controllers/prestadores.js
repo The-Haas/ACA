@@ -22,6 +22,19 @@ async function getPrestador(req, res) {
     }
 }
 
+async function getPrestadoresPorCategoria(req, res) {
+
+    const { id_categoria } = req.params;
+
+    const resultado = await prestadorService.getPrestadoresPorCategoria(id_categoria);
+
+    if (resultado.success) {
+        res.status(200).json(resultado);
+    } else {
+        res.status(400).json(resultado);
+    }
+}
+
 async function getPrestadorById(req, res) {
 
     const resultado = await prestadorService.getPrestadorById(req.params.id);
@@ -76,6 +89,7 @@ async function patchPrestador(req, res) {
 module.exports = {
     postPrestador,
     getPrestador,
+    getPrestadoresPorCategoria,
     getPrestadorById,
     putPrestador,
     deletePrestador,

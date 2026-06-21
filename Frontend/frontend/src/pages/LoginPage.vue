@@ -214,6 +214,15 @@ const tipoMensagem = computed(() => {
     : 'mensagem-login mensagem-sucesso'
 })
 
+function decodeJWT (token) {
+  try {
+    const payload = token.split('.')[1]
+    return JSON.parse(atob(payload))
+  } catch {
+    return null
+  }
+}
+
 async function fazerLogin () {
   if (carregando.value) {
     return
@@ -244,8 +253,11 @@ async function fazerLogin () {
       erro.value = false
       mensagem.value = 'Login realizado com sucesso!'
 
+      const tokenDecodificado = decodeJWT(response.data.token)
+      const destino = tokenDecodificado?.tipo === 'prestador' ? '/prestador' : '/home'
+
       setTimeout(() => {
-        router.push('/home')
+        router.push(destino)
       }, 700)
     } else {
       erro.value = true

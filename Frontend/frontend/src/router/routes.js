@@ -20,6 +20,11 @@ const routes = [
   },
 
   {
+    path: '/prestador',
+    component: () => import('pages/PainelPrestadorPage.vue')
+  },
+
+  {
     path: '/home',
     component: () => import('layouts/MainLayout.vue'),
     children: [

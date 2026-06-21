@@ -37,7 +37,20 @@
         </div>
       </div>
 
-      <section class="lista-orcamentos">
+      <!-- Carregando -->
+      <div v-if="carregando" class="carregando-container">
+        <q-spinner-dots color="red-14" size="50px" />
+        <div class="carregando-texto">Buscando prestadores disponíveis...</div>
+      </div>
+
+      <!-- Nenhum prestador -->
+      <div v-else-if="orcamentos.length === 0" class="vazio-container">
+        <q-icon name="search_off" size="60px" color="grey-4" />
+        <div class="vazio-texto">Nenhum prestador disponível para este serviço no momento.</div>
+      </div>
+
+      <!-- Lista -->
+      <section v-else class="lista-orcamentos">
         <q-card
           v-for="orcamento in orcamentosOrdenados"
           :key="orcamento.id"
@@ -96,6 +109,24 @@
                 <q-icon name="near_me" size="16px" color="red-14" />
                 Distância: <strong>{{ orcamento.distancia }} km</strong>
               </div>
+
+              <div class="detalhe-item">
+                <q-icon name="phone" size="16px" color="red-14" />
+                <strong>{{ orcamento.telefone }}</strong>
+              </div>
+            </div>
+
+            <div class="categorias">
+              <q-chip
+                v-for="cat in orcamento.categorias"
+                :key="cat"
+                dense
+                color="grey-2"
+                text-color="grey-8"
+                size="sm"
+              >
+                {{ cat }}
+              </q-chip>
             </div>
           </div>
 
@@ -173,7 +204,7 @@
 </template>
 
 <script setup>
-import { computed, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useQuasar } from 'quasar'
 import { api } from 'src/boot/axios'
@@ -185,53 +216,69 @@ const filtro = ref('')
 const modalConfirmacao = ref(false)
 const prestadorSelecionado = ref({})
 const salvando = ref(false)
+const carregando = ref(false)
+const orcamentos = ref([])
 
-const orcamentos = ref([
-  {
-    id: 1,
-    nome: 'Mecânica do Vesgo',
-    nota: '4.8',
-    estrelas: 5,
-    tempo: 120,
-    distancia: 15,
-    preco: 2000,
-    recomendado: true,
-    maisBarato: false
-  },
-  {
-    id: 2,
-    nome: 'CRC Mecânica',
-    nota: '4.0',
-    estrelas: 4,
-    tempo: 60,
-    distancia: 8,
-    preco: 1500,
-    recomendado: false,
-    maisBarato: false
-  },
-  {
-    id: 3,
-    nome: 'Mecânica do Clóvis',
-    nota: '3.0',
-    estrelas: 3,
-    tempo: 30,
-    distancia: 4,
-    preco: 1000,
-    recomendado: false,
-    maisBarato: false
-  },
-  {
-    id: 4,
-    nome: 'Mecânica Simas Turbo',
-    nota: '2.5',
-    estrelas: 3,
-    tempo: 10,
-    distancia: 1.9,
-    preco: 500,
-    recomendado: false,
-    maisBarato: true
+onMounted(() => {
+  carregarPrestadores()
+})
+
+async function carregarPrestadores () {
+  carregando.value = true
+
+  try {
+    const servico = JSON.parse(localStorage.getItem('servico_selecionado') || '{}')
+
+    if (!servico.id) {
+      $q.notify({ type: 'negative', message: 'Serviço não selecionado. Volte ao início.' })
+      router.push('/home')
+      return
+    }
+
+    const response = await api.get(`/prestadores/categoria/${servico.id}`)
+
+    if (!response.data.success) {
+      $q.notify({ type: 'negative', message: response.data.message || 'Erro ao buscar prestadores.' })
+      return
+    }
+
+    const lista = response.data.data
+
+    // Marca o mais barato e o recomendado (melhor avaliado)
+    // Como não temos preço real no cadastro do prestador, usamos valor simulado por posição
+    // TODO: substituir por preço real quando o backend tiver esse campo
+    const precos = [2000, 1500, 1000, 500, 800, 1200, 1800, 600]
+
+    orcamentos.value = lista.map((p, index) => ({
+      id: p.id,
+      nome: p.nome_fantasia || p.razao_social,
+      nota: '4.5',
+      estrelas: 4,
+      tempo: 10 + index * 10,
+      distancia: (1.5 + index * 2).toFixed(1),
+      preco: precos[index % precos.length],
+      telefone: p.telefone,
+      categorias: p.categorias_servico || [],
+      recomendado: index === 0,
+      maisBarato: false
+    }))
+
+    // Marca o mais barato
+    if (orcamentos.value.length > 0) {
+      const menorPreco = Math.min(...orcamentos.value.map(o => o.preco))
+      orcamentos.value = orcamentos.value.map(o => ({
+        ...o,
+        maisBarato: o.preco === menorPreco && !o.recomendado
+      }))
+    }
+
+  } catch (err) {
+    console.error('Erro ao carregar prestadores:', err)
+    $q.notify({ type: 'negative', message: 'Erro de conexão ao buscar prestadores.' })
+  } finally {
+    carregando.value = false
   }
-])
+}
 
 const orcamentosOrdenados = computed(() => {
   const lista = [...orcamentos.value]
@@ -267,7 +314,6 @@ function contratar (orcamento) {
   modalConfirmacao.value = true
 }
 
-// Decodifica o payload do JWT sem biblioteca externa
 function decodeJWT (token) {
   try {
     const payload = token.split('.')[1]
@@ -281,14 +327,13 @@ async function confirmarContratacao () {
   salvando.value = true
 
   try {
-    // Recupera dados do fluxo
     const servico = JSON.parse(localStorage.getItem('servico_selecionado') || '{}')
     const tipoLocalizacao = JSON.parse(localStorage.getItem('tipo_localizacao') || '{}')
     const localizacaoSalva = JSON.parse(localStorage.getItem('localizacao_atendimento') || '{}')
     const descricaoProblema = localStorage.getItem('descricao_problema') || ''
+    const veiculoSelecionado = JSON.parse(localStorage.getItem('veiculo_selecionado') || '{}')
     const token = localStorage.getItem('token')
 
-    // Extrai o id do usuário direto do token JWT
     const tokenDecodificado = decodeJWT(token)
     const id_usuario = tokenDecodificado?.id
 
@@ -313,9 +358,14 @@ async function confirmarContratacao () {
       return
     }
 
+    if (!veiculoSelecionado.id_veiculo) {
+      $q.notify({ type: 'negative', message: 'Veículo não selecionado. Volte à descrição do problema.' })
+      return
+    }
+
     const payload = {
       id_usuario,
-      id_veiculo: JSON.parse(localStorage.getItem('veiculo_selecionado') || '{}').id_veiculo, // TODO: substituir pelo id do veículo selecionado quando essa etapa for adicionada ao fluxo
+      id_veiculo: veiculoSelecionado.id_veiculo,
       id_tipo_localizacao: tipoLocalizacao.id,
       localizacao: `${localizacaoSalva.latitude},${localizacaoSalva.longitude}`,
       local_entrega: null,
@@ -330,7 +380,6 @@ async function confirmarContratacao () {
       return
     }
 
-    // Salva a OS criada para uso na tela de acompanhamento
     localStorage.setItem('os_criada', JSON.stringify(response.data.data))
     localStorage.setItem('orcamento_contratado', JSON.stringify(prestadorSelecionado.value))
 
@@ -392,6 +441,28 @@ async function confirmarContratacao () {
 .filtros {
   display: flex;
   gap: 10px;
+}
+
+.carregando-container {
+  text-align: center;
+  padding: 60px 20px;
+}
+
+.carregando-texto {
+  color: #6b7280;
+  margin-top: 16px;
+  font-size: 15px;
+}
+
+.vazio-container {
+  text-align: center;
+  padding: 60px 20px;
+}
+
+.vazio-texto {
+  color: #6b7280;
+  margin-top: 14px;
+  font-size: 15px;
 }
 
 .lista-orcamentos {
@@ -470,7 +541,7 @@ async function confirmarContratacao () {
 
 .detalhes {
   display: flex;
-  gap: 42px;
+  gap: 24px;
   margin-top: 17px;
   flex-wrap: wrap;
 }
@@ -485,6 +556,13 @@ async function confirmarContratacao () {
 
 .detalhe-item strong {
   color: #1f2937;
+}
+
+.categorias {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 12px;
 }
 
 .separator-desktop {
