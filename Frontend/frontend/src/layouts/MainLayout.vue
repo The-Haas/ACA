@@ -97,6 +97,7 @@
                 <q-item
                   clickable
                   v-close-popup
+                  @click="router.push('/home/minha-conta')"
                 >
                   <q-item-section avatar>
                     <q-icon name="manage_accounts" color="red-14" />

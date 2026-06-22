@@ -34,9 +34,16 @@ async function finalizarOrdemServico(req, res) {
     res.status(result.success ? 200 : 400).json(result);
 }
 
+async function buscarOsAtivaCliente(req, res) {
+    const id_usuario = req.user.id;
+    const result = await service.buscarOsAtivaCliente(id_usuario);
+    res.status(result.success ? 200 : 400).json(result);
+}
+
 module.exports = {
     criarOrdemServico,
     listarOrdensAbertasPrestador,
     aceitarOrdemServico,
-    finalizarOrdemServico
+    finalizarOrdemServico,
+    buscarOsAtivaCliente
 };

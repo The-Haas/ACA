@@ -64,6 +64,10 @@ const routes = [
       {
         path: 'acompanhamento',
         component: () => import('pages/AcompanhamentoPage.vue')
+      },
+      {
+        path: 'minha-conta',
+        component: () => import('pages/MinhaContaPage.vue')
       }
     ]
   },

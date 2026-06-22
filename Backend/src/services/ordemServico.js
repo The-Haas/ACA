@@ -91,12 +91,12 @@ async function criarOrdemServico(dados) {
             }
         }
 
-        // 🟢 criar OS
+        // 🟢 criar OS (status=1 aberta, sem prestador vinculado)
         const os = await client.query(
-            `INSERT INTO ordem_servico 
+            `INSERT INTO ordem_servico
             (descricao, valor, localizacao, local_entrega, id_usuario, id_veiculo, observacao_cliente, id_tipo_localizacao, id_status)
             VALUES ($1, 0, $2, $3, $4, $5, $6, $7, 1)
-            RETURNING *`,
+            RETURNING id, localizacao, observacao_cliente, id_status`,
             [
                 'Ordem de serviço',
                 localizacao,
@@ -113,7 +113,7 @@ async function criarOrdemServico(dados) {
         // 🟢 inserir itens
         for (let item of itens) {
             await client.query(
-                `INSERT INTO ordem_servico_itens 
+                `INSERT INTO ordem_servico_itens
                 (id_ordem_servico, id_categoria_servico)
                 VALUES ($1, $2)`,
                 [id_os, item]
@@ -122,35 +122,10 @@ async function criarOrdemServico(dados) {
 
         await client.query('COMMIT');
 
-const osCompleta = await client.query(
-    `SELECT 
-        os.id,
-        os.descricao,
-        os.valor,
-        os.localizacao,
-        os.local_entrega,
-        
-        c.nome AS cliente,
-        v.descricao AS veiculo,
-        tl.nome AS tipo_localizacao,
-        st.nome AS status,
-
-        os.observacao_cliente,
-        os.observacao_prestador
-
-    FROM ordem_servico os
-    JOIN clientes c ON c.id = os.id_usuario
-    JOIN veiculos v ON v.id_veiculo = os.id_veiculo
-    JOIN tipos_localizacao tl ON tl.id = os.id_tipo_localizacao
-    JOIN status_servico st ON st.id = os.id_status
-    WHERE os.id = $1`,
-    [id_os]
-);
-
-return {
-    success: true,
-    data: osCompleta.rows[0]
-};
+        return {
+            success: true,
+            data: { id: id_os, status: 'Pendente' }
+        };
 
     } catch (err) {
         await client.query('ROLLBACK');
@@ -384,9 +359,47 @@ async function finalizarOrdemServico(id_os, avaliacao) {
     }
 }
 
+async function buscarOsAtivaCliente(id_usuario) {
+    try {
+        const result = await db.query(
+            `SELECT
+                os.id,
+                os.localizacao,
+                os.observacao_cliente,
+                os.id_status,
+                st.nome AS status,
+                cs_itens.nome AS servico,
+                p.nome_fantasia AS prestador_nome,
+                p.telefone AS prestador_telefone,
+                tl.nome AS tipo_localizacao
+             FROM ordem_servico os
+             JOIN status_servico st ON st.id = os.id_status
+             JOIN tipos_localizacao tl ON tl.id = os.id_tipo_localizacao
+             LEFT JOIN ordem_servico_itens oi ON oi.id_ordem_servico = os.id
+             LEFT JOIN categoria_servicos cs_itens ON cs_itens.id = oi.id_categoria_servico
+             LEFT JOIN prestadores p ON p.id = os.id_prestador
+             WHERE os.id_usuario = $1
+               AND os.id_status IN (1, 2)
+             ORDER BY os.id DESC
+             LIMIT 1`,
+            [id_usuario]
+        );
+
+        if (result.rows.length === 0) {
+            return { success: true, data: null };
+        }
+
+        return { success: true, data: result.rows[0] };
+
+    } catch (err) {
+        return { success: false, error: err.message };
+    }
+}
+
 module.exports = {
     criarOrdemServico,
     listarOrdensAbertasPrestador,
     aceitarOrdemServico,
-    finalizarOrdemServico
+    finalizarOrdemServico,
+    buscarOsAtivaCliente
 };
