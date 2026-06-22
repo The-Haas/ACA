@@ -63,16 +63,61 @@
 
         <!-- ===================== CHAMADOS ===================== -->
         <template v-if="paginaAtiva === 'chamados'">
-          <section class="painel-hero">
-            <div class="service-badge">Chamados em aberto</div>
-            <h1 class="painel-title">Atendimentos disponíveis para você</h1>
-            <p class="painel-description">
-              Estes são os chamados ainda sem prestador que correspondem aos
-              serviços que você atende. Aceite um chamado para iniciar o atendimento.
-            </p>
-            <q-btn flat no-caps icon="refresh" label="Atualizar lista" color="red-14"
-              :loading="carregando" @click="carregarChamados" />
+
+          <!-- Boas-vindas -->
+          <section class="boas-vindas">
+            <div class="bv-texto">
+              <div class="bv-saudacao">Olá, {{ nomePrestador || 'Prestador' }} 👋</div>
+              <div class="bv-subtitulo">Bem-vindo ao seu painel de atendimentos</div>
+            </div>
+            <div class="bv-badge">
+              <q-icon name="verified" color="white" size="18px" />
+              Prestador ativo
+            </div>
           </section>
+
+          <!-- Cards de status -->
+          <section class="status-cards">
+            <div class="status-card" style="background: linear-gradient(135deg, #df0000, #ff4444); box-shadow: 0 6px 18px rgba(223,0,0,0.28);">
+              <div class="sc-icon">
+                <q-icon name="inbox" size="26px" style="color: #fff" />
+              </div>
+              <div class="sc-info">
+                <div class="sc-valor">{{ carregando ? '—' : chamados.length }}</div>
+                <div class="sc-label">Em aberto</div>
+              </div>
+            </div>
+
+            <div class="status-card" style="background: linear-gradient(135deg, #1d4ed8, #3b82f6); box-shadow: 0 6px 18px rgba(29,78,216,0.28);">
+              <div class="sc-icon">
+                <q-icon name="build" size="26px" style="color: #fff" />
+              </div>
+              <div class="sc-info">
+                <div class="sc-valor">{{ servicosPrestador.length }}</div>
+                <div class="sc-label">Serviços atendidos</div>
+              </div>
+            </div>
+
+            <div class="status-card" style="background: linear-gradient(135deg, #059669, #10b981); box-shadow: 0 6px 18px rgba(5,150,105,0.28);">
+              <div class="sc-icon">
+                <q-icon name="schedule" size="26px" style="color: #fff" />
+              </div>
+              <div class="sc-info">
+                <div class="sc-valor">24h</div>
+                <div class="sc-label">Disponibilidade</div>
+              </div>
+            </div>
+          </section>
+
+          <!-- Título da lista -->
+          <div class="lista-header">
+            <div class="lista-titulo">
+              <q-icon name="support_agent" color="red-14" size="22px" />
+              Chamados disponíveis para você
+            </div>
+            <q-btn flat no-caps icon="refresh" label="Atualizar" color="red-14" dense
+              :loading="carregando" @click="carregarChamados" />
+          </div>
 
           <section v-if="carregando" class="estado-section">
             <q-spinner color="red-14" size="42px" />
@@ -86,13 +131,17 @@
               class="q-mt-sm" @click="carregarChamados" />
           </section>
 
-          <section v-else-if="chamados.length === 0" class="estado-section">
-            <q-icon name="task_alt" size="42px" color="grey-5" />
-            <div class="estado-text">
-              Nenhum chamado em aberto no momento para os serviços que você atende.
+          <section v-else-if="chamados.length === 0" class="vazio-wrapper">
+            <div class="vazio-icone">
+              <q-icon name="wifi_tethering_off" size="52px" color="grey-4" />
             </div>
-            <div class="estado-subtext">
-              Assim que um cliente solicitar um serviço compatível, ele aparecerá aqui.
+            <div class="vazio-titulo">Nenhum chamado em aberto</div>
+            <div class="vazio-descricao">
+              Quando um cliente solicitar um serviço compatível com os seus, ele aparecerá aqui automaticamente.
+            </div>
+            <div class="vazio-dica">
+              <q-icon name="tips_and_updates" size="16px" color="orange-7" />
+              Dica: deixe esta página aberta e clique em "Atualizar" periodicamente.
             </div>
           </section>
 
@@ -137,6 +186,7 @@
               </q-card-section>
             </q-card>
           </section>
+
         </template>
 
         <!-- ===================== MINHA CONTA ===================== -->
@@ -272,6 +322,8 @@ const aceitandoId = ref(null)
 
 // ---- conta ----
 const idPrestador = ref(null)
+const nomePrestador = ref('')
+const servicosPrestador = ref([])
 const conta = ref({
   nome_fantasia: '',
   razao_social: '',
@@ -470,11 +522,21 @@ async function salvarSenha () {
   }
 }
 
-onMounted(() => {
+onMounted(async () => {
   const token = localStorage.getItem('token')
   const decoded = decodeJWT(token)
   idPrestador.value = decoded?.id || null
   carregarChamados()
+  // carrega nome e serviços para exibir nos cards
+  if (idPrestador.value) {
+    try {
+      const r = await api.get(`/prestadores/${idPrestador.value}`)
+      if (r.data?.success) {
+        nomePrestador.value = r.data.prestador.nome_fantasia || ''
+        servicosPrestador.value = r.data.prestador.categorias_servico || []
+      }
+    } catch { /* silencioso */ }
+  }
 })
 </script>
 
@@ -553,45 +615,157 @@ onMounted(() => {
 /* ---- Página geral ---- */
 .painel-page {
   min-height: calc(100vh - 83px);
-  background:
-    radial-gradient(circle at top left, rgba(224, 0, 0, 0.08), transparent 300px),
-    #f4f5f8;
-  padding: 48px 24px 90px;
+  background: #f4f5f8;
+  padding: 36px 24px 90px;
+  max-width: 900px;
+  margin: 0 auto;
 }
 
-/* ---- Chamados ---- */
-.painel-hero {
-  text-align: center;
-  max-width: 720px;
-  margin: 0 auto 40px;
+/* ---- Boas-vindas ---- */
+.boas-vindas {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: linear-gradient(135deg, #1c1c6b 0%, #2d2d9f 100%);
+  border-radius: 18px;
+  padding: 24px 28px;
+  margin-bottom: 24px;
+  box-shadow: 0 8px 24px rgba(28, 28, 107, 0.22);
 }
 
-.service-badge {
-  display: inline-block;
-  background: #df0000;
+.bv-saudacao {
+  font-size: 20px;
+  font-weight: 900;
   color: #ffffff;
-  padding: 12px 30px;
+  margin-bottom: 4px;
+}
+
+.bv-subtitulo {
+  font-size: 13px;
+  color: rgba(255,255,255,0.65);
+}
+
+.bv-badge {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(255,255,255,0.15);
+  color: #ffffff;
+  font-size: 13px;
+  font-weight: 700;
+  padding: 8px 16px;
   border-radius: 999px;
+  white-space: nowrap;
+}
+
+/* ---- Status cards ---- */
+.status-cards {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+  margin-bottom: 32px;
+}
+
+.status-card {
+  border-radius: 16px;
+  padding: 20px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  box-shadow: 0 6px 18px rgba(0,0,0,0.1);
+}
+
+.sc-icon {
+  width: 48px;
+  height: 48px;
+  background: rgba(255,255,255,0.22) !important;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.sc-valor {
+  font-size: 26px;
+  font-weight: 900;
+  color: #ffffff;
+  line-height: 1;
+}
+
+.sc-label {
+  font-size: 12px;
+  color: rgba(255,255,255,0.8);
+  margin-top: 3px;
+  font-weight: 600;
+}
+
+/* ---- Título da lista ---- */
+.lista-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+
+.lista-titulo {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   font-size: 16px;
-  font-weight: 900;
-  box-shadow: 0 10px 20px rgba(223, 0, 0, 0.25);
-  transform: rotate(-1deg);
-}
-
-.painel-title {
-  margin: 24px 0 10px;
-  font-size: 30px;
-  font-weight: 900;
+  font-weight: 800;
   color: #1f2937;
-  line-height: 1.2;
 }
 
-.painel-description {
-  max-width: 600px;
-  margin: 0 auto 18px;
+/* ---- Vazio ---- */
+.vazio-wrapper {
+  background: #ffffff;
+  border-radius: 18px;
+  border: 2px dashed #e5e7eb;
+  text-align: center;
+  padding: 56px 32px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+}
+
+.vazio-icone {
+  width: 80px;
+  height: 80px;
+  background: #f3f4f6;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 8px;
+}
+
+.vazio-titulo {
+  font-size: 17px;
+  font-weight: 800;
+  color: #374151;
+}
+
+.vazio-descricao {
+  font-size: 14px;
   color: #6b7280;
-  font-size: 15px;
+  max-width: 380px;
   line-height: 1.6;
+}
+
+.vazio-dica {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: #fffbeb;
+  border: 1px solid #fde68a;
+  color: #92400e;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 8px 14px;
+  border-radius: 999px;
+  margin-top: 8px;
 }
 
 .estado-section {
@@ -753,11 +927,17 @@ onMounted(() => {
 
 @media (max-width: 600px) {
   .painel-page {
-    padding: 36px 16px 90px;
+    padding: 20px 14px 90px;
   }
 
-  .painel-title {
-    font-size: 24px;
+  .boas-vindas {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 14px;
+  }
+
+  .status-cards {
+    grid-template-columns: 1fr;
   }
 
   .chamado-content {
