@@ -364,7 +364,6 @@ async function confirmarContratacao () {
     }
 
     const payload = {
-      id_usuario,
       id_veiculo: veiculoSelecionado.id_veiculo,
       id_tipo_localizacao: tipoLocalizacao.id,
       localizacao: `${localizacaoSalva.latitude},${localizacaoSalva.longitude}`,
@@ -391,7 +390,8 @@ async function confirmarContratacao () {
 
   } catch (err) {
     console.error('Erro ao criar OS:', err)
-    $q.notify({ type: 'negative', message: 'Erro de conexão com o servidor.' })
+    const mensagem = err?.response?.data?.message || err?.response?.data?.error || 'Erro de conexão com o servidor.'
+    $q.notify({ type: 'negative', message: mensagem })
   } finally {
     salvando.value = false
   }

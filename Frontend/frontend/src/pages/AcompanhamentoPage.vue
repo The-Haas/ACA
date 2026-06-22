@@ -3,7 +3,25 @@
 
     <section class="status-grid">
 
-      <q-card class="status-card status-card-red" flat>
+      <!-- Status: aguardando prestador (OS aberta) -->
+      <q-card v-if="statusOs === 1" class="status-card status-card-yellow" flat>
+        <div class="status-icon-white">
+          <q-icon name="hourglass_top" size="26px" color="white" />
+        </div>
+
+        <div>
+          <div class="status-title-white">
+            Aguardando Prestador
+          </div>
+
+          <div class="status-text-white">
+            Sua solicitação foi enviada. Um prestador irá aceitar em breve.
+          </div>
+        </div>
+      </q-card>
+
+      <!-- Status: prestador confirmado (OS aceita) -->
+      <q-card v-else class="status-card status-card-red" flat>
         <div class="status-icon-white">
           <q-icon name="verified" size="26px" color="white" />
         </div>
@@ -26,13 +44,18 @@
               Status Atual
             </div>
 
-            <div class="status-current">
+            <div v-if="statusOs === 1" class="status-current status-pending">
+              <q-icon name="schedule" size="18px" color="orange-8" />
+              Aguardando aceite do prestador
+            </div>
+
+            <div v-else class="status-current">
               <q-icon name="local_shipping" size="18px" color="red-14" />
               Prestador se dirigindo ao local
             </div>
           </div>
 
-          <div class="time-box">
+          <div v-if="statusOs !== 1" class="time-box">
             <div class="time-label">
               Tempo estimado
             </div>
@@ -241,6 +264,7 @@ const avaliacao = ref(0)
 const comentario = ref('')
 const tempoEstimado = ref(12)
 const finalizando = ref(false)
+const statusOs = ref(1)
 
 const latitude = ref(-26.8468)
 const longitude = ref(-52.9913)
@@ -295,7 +319,7 @@ const mecanicoIcon = L.divIcon({
 })
 
 onMounted(async () => {
-  carregarDadosSalvos()
+  await verificarOsAtiva()
 
   await nextTick()
 
@@ -309,7 +333,56 @@ onBeforeUnmount(() => {
   }
 })
 
-function carregarDadosSalvos () {
+async function verificarOsAtiva () {
+  // 1. Primeiro tenta buscar no backend
+  try {
+    const response = await api.get('/ordemServico/ativa')
+
+    if (response.data.success && response.data.data) {
+      const os = response.data.data
+
+      // Preenche dados da OS real
+      const [lat, lng] = (os.localizacao || '-26.8468,-52.9913').split(',').map(Number)
+      latitude.value = lat
+      longitude.value = lng
+
+      statusOs.value = os.id_status || 1
+      servicoSelecionado.value = { nome: os.servico || 'Serviço solicitado' }
+      tipoLocalizacao.value = { nome: os.tipo_localizacao || '' }
+      descricaoProblema.value = os.observacao_cliente || ''
+
+      if (os.prestador_nome) {
+        orcamentoContratado.value = {
+          id: null,
+          nome: os.prestador_nome,
+          telefone: os.prestador_telefone,
+          tempo: 30,
+          preco: 0
+        }
+      } else {
+        orcamentoContratado.value = { nome: 'Aguardando prestador', tempo: 0, preco: 0 }
+      }
+
+      // Salva os_criada atualizada
+      localStorage.setItem('os_criada', JSON.stringify({ id: os.id }))
+      tempoEstimado.value = orcamentoContratado.value.tempo || 30
+      definirLocalizacaoPrestador(orcamentoContratado.value)
+      return
+    }
+  } catch (err) {
+    console.warn('Não foi possível buscar OS ativa do backend, usando localStorage.', err)
+  }
+
+  // 2. Fallback: usar localStorage (mas valida se os_criada existe)
+  const osCriada = localStorage.getItem('os_criada')
+  if (!osCriada) {
+    // Não há OS ativa nem no backend nem no localStorage → redireciona
+    $q.notify({ type: 'warning', message: 'Nenhum chamado ativo encontrado.' })
+    router.push('/home')
+    return
+  }
+
+  // Carrega dados do localStorage normalmente
   const localizacaoSalva = localStorage.getItem('localizacao_atendimento')
   const servicoSalvo = localStorage.getItem('servico_selecionado')
   const tipoSalvo = localStorage.getItem('tipo_localizacao')
@@ -318,35 +391,20 @@ function carregarDadosSalvos () {
 
   if (localizacaoSalva) {
     const localizacao = JSON.parse(localizacaoSalva)
-
     latitude.value = Number(localizacao.latitude)
     longitude.value = Number(localizacao.longitude)
   }
 
-  if (servicoSalvo) {
-    servicoSelecionado.value = JSON.parse(servicoSalvo)
-  }
-
-  if (tipoSalvo) {
-    tipoLocalizacao.value = JSON.parse(tipoSalvo)
-  }
-
-  if (descricaoSalva) {
-    descricaoProblema.value = descricaoSalva
-  }
+  if (servicoSalvo) servicoSelecionado.value = JSON.parse(servicoSalvo)
+  if (tipoSalvo) tipoLocalizacao.value = JSON.parse(tipoSalvo)
+  if (descricaoSalva) descricaoProblema.value = descricaoSalva
 
   if (orcamentoSalvo) {
     orcamentoContratado.value = JSON.parse(orcamentoSalvo)
     tempoEstimado.value = orcamentoContratado.value.tempo || 12
     definirLocalizacaoPrestador(orcamentoContratado.value)
   } else {
-    orcamentoContratado.value = {
-      id: 1,
-      nome: 'Prestador selecionado',
-      tempo: 12,
-      preco: 0
-    }
-
+    orcamentoContratado.value = { id: 1, nome: 'Prestador selecionado', tempo: 12, preco: 0 }
     definirLocalizacaoPrestador(orcamentoContratado.value)
   }
 }
@@ -537,6 +595,14 @@ async function finalizarAtendimento () {
 
 .status-card-red {
   background: #df0000;
+}
+
+.status-card-yellow {
+  background: #d97706;
+}
+
+.status-pending {
+  color: #d97706 !important;
 }
 
 .status-icon-white {

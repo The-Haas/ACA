@@ -47,6 +47,12 @@
       </q-card>
     </section>
 
+    <!-- Aviso de fallback -->
+    <div v-if="!carregando && usandoFallback" class="fallback-aviso">
+      <q-icon name="wifi_off" size="18px" />
+      Servidor indisponível — exibindo serviços padrão.
+    </div>
+
     <section class="help-section">
       <q-card class="help-card" flat>
         <q-icon name="schedule" size="34px" color="red-14" />
@@ -126,7 +132,17 @@ const router = useRouter()
 
 const modalServico = ref(false)
 const carregando = ref(false)
+const usandoFallback = ref(false)
 const servicos = ref([])
+
+const servicosFallback = [
+  { id: 1, nome: 'Guincho' },
+  { id: 2, nome: 'Troca de Pneu' },
+  { id: 3, nome: 'Chaveiro' },
+  { id: 4, nome: 'Pane Seca' },
+  { id: 5, nome: 'Mecânico' },
+  { id: 6, nome: 'Recarga de Bateria' }
+]
 
 const servicoSelecionado = ref({
   id: null,
@@ -189,6 +205,8 @@ async function carregarServicos () {
     }
   } catch (err) {
     console.error('Erro ao carregar serviços:', err)
+    servicos.value = servicosFallback
+    usandoFallback.value = true
   } finally {
     carregando.value = false
   }
@@ -361,6 +379,21 @@ function continuarServico () {
 .help-text {
   font-size: 13px;
   color: #6b7280;
+}
+
+.fallback-aviso {
+  max-width: 1050px;
+  margin: 16px auto 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: #fff8e1;
+  border: 1px solid #ffe082;
+  color: #7a5c00;
+  border-radius: 10px;
+  padding: 10px 16px;
+  font-size: 13px;
+  font-weight: 600;
 }
 
 .dialog-card {
